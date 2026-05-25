@@ -203,7 +203,7 @@ func setup(p_node_types: Dictionary, p_inputs: Array, p_has_selected_nodes: bool
 		"Density": ["curve_remap_density", "density_remap", "distance_to_density"],
 		"Filter": ["filter", "filter_data_by_tag", "filter_data_by_attribute", "filter_data_by_type", "self_pruning"],
 		"Math": ["math_op", "expression", "reduce"],
-		"Metadata": ["add_attribute", "remove_attribute", "make_vector", "match_and_set"],
+		"Metadata": ["add_attribute", "remove_attribute", "make_vector", "match_and_set", "random_color"],
 		"Point Ops": ["bounds_modifier", "transform", "build_rotation_from_up", "combine_points", "duplicate_point"],
 		"Sampler": ["copy", "sample_mesh", "select_points", "sample_spline"],
 		"Spatial": ["create_spline", "distance", "ray_cast"],

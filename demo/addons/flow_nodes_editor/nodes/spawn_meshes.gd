@@ -99,12 +99,17 @@ func execute( ctx : FlowData.EvaluationContext ):
 		mmis[ key ].append( idx )
 	
 	#print( "mmis: ", mmis )
+	var color_stream = in_data.findStream("color")
+	var has_colors = color_stream != null and color_stream.data_type == FlowData.DataType.Color
+
 	for res in mmis.keys():
 		var mmi : MultiMeshInstance3D = spawnNode( root, MultiMeshInstance3D )
 		
 		var multimesh := MultiMesh.new()
 		multimesh.mesh = load( res )
 		multimesh.transform_format = MultiMesh.TransformFormat.TRANSFORM_3D
+		if has_colors:
+			multimesh.use_colors = true
 		var ids = mmis[res]
 		multimesh.instance_count = ids.size()
 		
@@ -112,9 +117,16 @@ func execute( ctx : FlowData.EvaluationContext ):
 		var idx := 0
 		for id in ids:
 			multimesh.set_instance_transform( idx, transforms.atIndex( id ) )
+			if has_colors:
+				multimesh.set_instance_color( idx, color_stream.container[id] )
 			idx += 1
 			
 		mmi.multimesh = multimesh
+		if has_colors:
+			var mat = StandardMaterial3D.new()
+			mat.vertex_color_use_as_albedo = true
+			mat.roughness = 0.3
+			mmi.material_override = mat
 		root.add_child( mmi )
 		mmi.owner = owner_of_mmis
 	
