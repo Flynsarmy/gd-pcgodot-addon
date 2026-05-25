@@ -35,10 +35,10 @@ func execute( ctx : FlowData.EvaluationContext ):
 	if settings.scene_attribute:
 		var stream_scenes = in_data.findStream( settings.scene_attribute )
 		if stream_scenes == null:
-			setError( "Input does not have attribute '%s'" % settings.mesh_attribute)
+			setError( "Input does not have attribute '%s'" % settings.scene_attribute)
 			return
 		if stream_scenes.data_type != FlowData.DataType.Resource:
-			setError( "Attribute '%s' should be of type Resource Packed Scene" % settings.mesh_attribute)
+			setError( "Attribute '%s' should be of type Resource Packed Scene" % settings.scene_attribute)
 			return
 		scenes = stream_scenes.container
 	

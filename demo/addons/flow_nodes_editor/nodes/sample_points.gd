@@ -39,6 +39,9 @@ func uniformSampling( ctx : FlowData.EvaluationContext, in_trs : FlowData.Transf
 	var max_samples_z : int = getSettingValue( ctx, "max_z" )
 	var new_size_factor : float = getSettingValue( ctx, "new_size_factor")
 	var sampling_distance : float = getSettingValue( ctx, "sampling_distance")
+	if sampling_distance <= 0.0:
+		setError( "Sampling distance must be greater than zero" )
+		return
 
 	var spos := output.getVector3Container( FlowData.AttrPosition )
 	var srot := output.getVector3Container( FlowData.AttrRotation )
