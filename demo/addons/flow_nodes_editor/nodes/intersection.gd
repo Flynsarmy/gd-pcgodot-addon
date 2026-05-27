@@ -8,7 +8,7 @@ func _init():
 		"ins" : [{ "label": "In A" }, { "label": "In B" }],
 		"outs" : [{ "label" : "Out" }],
 		"hide_inputs" : true,
-		"tooltip" : "Returns points in A that overlap points in B (UE-style Intersection alias).",
+		"tooltip" : "Returns points in A that overlap points in B (Intersection alias).",
 	}
 
 func execute(ctx : FlowData.EvaluationContext):

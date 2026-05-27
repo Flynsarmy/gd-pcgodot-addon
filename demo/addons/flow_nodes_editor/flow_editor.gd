@@ -599,7 +599,7 @@ func _ready():
 	toolbar.add_child(btn_open)
 	toolbar.move_child(btn_open, 0)
 
-	# Unreal-style analyze: inspect selected node raw output
+	# Analyze: inspect selected node raw output
 	var btn_analyze := Button.new()
 	btn_analyze.text = "Analyze"
 	btn_analyze.tooltip_text = "Inspect selected node raw data (A)"

@@ -8,7 +8,7 @@ func _init():
 		"ins" : [{ "label": "In A" }, { "label": "In B" }],
 		"outs" : [{ "label" : "Out" }],
 		"hide_inputs" : true,
-		"tooltip" : "UE-style Union alias. Merges all incoming point sets.",
+		"tooltip" : "Union alias. Merges all incoming point sets.",
 	}
 
 func execute(ctx : FlowData.EvaluationContext):

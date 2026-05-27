@@ -9,5 +9,5 @@ func _init():
 		"settings" : VolumeSamplerNodeSettings,
 		"ins" : [{ "label" : "In" }],
 		"outs" : [{ "label" : "Out" }],
-		"tooltip" : "Samples points inside incoming point volumes (UE-style Volume Sampler alias).",
+		"tooltip" : "Samples points inside incoming point volumes (Volume Sampler alias).",
 	}

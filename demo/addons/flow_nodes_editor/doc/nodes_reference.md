@@ -58,7 +58,7 @@ A complete reference of all available nodes in the PCGODOT framework, grouped by
 | **Noise** | [noise.gd](../nodes/noise.gd) | Outputs an attribute with Noise values |
 | **Relax** | [relax.gd](../nodes/relax.gd) | Relax distance between points |
 | **Self Pruning** | [self_pruning.gd](../nodes/self_pruning.gd) | Rejects points that overlap previous points, or removes duplicate grid-cell points. |
-| **Volume Sampler** | [volume_sampler.gd](../nodes/volume_sampler.gd) | Samples points inside incoming point volumes (UE-style Volume Sampler alias). |
+| **Volume Sampler** | [volume_sampler.gd](../nodes/volume_sampler.gd) | Samples points inside incoming point volumes (Volume Sampler alias). |
 
 ## 📂 Math
 
@@ -86,14 +86,14 @@ A complete reference of all available nodes in the PCGODOT framework, grouped by
 | Node | Script File | Description |
 | --- | --- | --- |
 | **Difference** | [difference.gd](../nodes/difference.gd) | Performs set operations between two point sets based on position/size overlap. |
-| **Intersection** | [intersection.gd](../nodes/intersection.gd) | Returns points in A that overlap points in B (UE-style Intersection alias). |
+| **Intersection** | [intersection.gd](../nodes/intersection.gd) | Returns points in A that overlap points in B (Intersection alias). |
 | **Navigation Region Sampler** | [navigation_region_sampler.gd](../nodes/navigation_region_sampler.gd) | Samples Godot NavigationRegion3D meshes into points. |
 | **Physics Overlap Query** | [physics_overlap_query.gd](../nodes/physics_overlap_query.gd) | Runs shape-overlap checks per point against the 3D physics world (Godot-specific query node). |
 | **Physics Shape Sweep** | [physics_shape_sweep.gd](../nodes/physics_shape_sweep.gd) | Sweeps a sphere or box from each point through the Godot physics world. |
 | **Point Neighborhood** | [point_neighborhood.gd](../nodes/point_neighborhood.gd) | Computes neighborhood-derived values such as average center, average density, and distance to center. |
 | **Ray Cast** | [ray_cast.gd](../nodes/ray_cast.gd) | Traces a ray in the current scene from the point position (the attribute can be redefined). |
 | **Substract** | [substract.gd](../nodes/substract.gd) | Applies the boolean logic |
-| **Union** | [union.gd](../nodes/union.gd) | UE-style Union alias. Merges all incoming point sets. |
+| **Union** | [union.gd](../nodes/union.gd) | Union alias. Merges all incoming point sets. |
 
 ## 📂 Splines
 
@@ -143,7 +143,7 @@ A complete reference of all available nodes in the PCGODOT framework, grouped by
 | **Match And Set** | [match_and_set.gd](../nodes/match_and_set.gd) | Copies attributes into input data set based on a match_attr. |
 | **Merge** | [merge.gd](../nodes/merge.gd) | Merges and combines all streams of all input connections in a single output If input A provides streams s1 and s2, and input B streams s1 and s3 the output will have streams s1,s2 and s3 and the default values will be used where the input does not define a value. |
 | **Merge Points** | [merge_points.gd](../nodes/merge_points.gd) | Godot-facing alias of Merge for point data. |
-| **Mesh Sampler** | [mesh_sampler.gd](../nodes/mesh_sampler.gd) | Samples points on a mesh surface. Unreal-style alias of Sample Mesh. |
+| **Mesh Sampler** | [mesh_sampler.gd](../nodes/mesh_sampler.gd) | Samples points on a mesh surface. Alias of Sample Mesh. |
 | **Output** | [output.gd](../nodes/output.gd) | Exposes an output parameter of the Subgraph |
 | **Partition** | [partition.gd](../nodes/partition.gd) | Partition data based on the different values an attribute. |
 | **Point From Player** | [point_from_player_pawn.gd](../nodes/point_from_player_pawn.gd) | Emits one point from a Godot player/source Node3D. Resolves by explicit path, group, class/name, then optional camera fallback. |

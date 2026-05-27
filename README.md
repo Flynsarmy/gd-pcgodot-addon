@@ -3,7 +3,7 @@
 [![Godot Engine](https://img.shields.io/badge/Godot-%23FFFFFF.svg?style=flat&logo=godot-engine&logoColor=cyan)](https://godotengine.org)
 [![Version](https://img.shields.io/badge/Version-1.2.0--aligned-blue.svg)](#)
 
-**PCGODOT** is a highly powerful, node-based Procedural Content Generation (PCG) framework for Godot 4.6+, heavily inspired by **Unreal Engine 5's PCG**. It enables developers to construct intricate point-set distributions, manipulate spatial attributes, and spawn meshes, lights, or scene hierarchies procedurally using a visual flow graph editor inside Godot.
+**PCGODOT** is a highly powerful, node-based Procedural Content Generation (PCG) framework for Godot 4.6+, heavily inspired by advanced node-based procedural workflows. It enables developers to construct intricate point-set distributions, manipulate spatial attributes, and spawn meshes, lights, or scene hierarchies procedurally using a visual flow graph editor inside Godot.
 
 ![PCGODOT Flow Editor](demo/addons/flow_nodes_editor/doc/demo_flashy_colonnade_ui.png)
 
@@ -11,10 +11,10 @@
 
 ## 🚀 Key Features
 
-* **Unreal Engine PCG Alignment (1:1)**: Unified categories, names, and logic schemas conforming to the Unreal PCG specifications.
+* **Standardized Node Structure**: Unified categories, clear names, and consistent logical schemas.
 * **+110 Nodes**: A robust library of nodes for spatial, attribute, and asset generation. Check out the full [PCGODOT Node Library Reference](demo/addons/flow_nodes_editor/doc/nodes_reference.md).
-* **Interactive 3D Viewport Debugging**: Toggle 3D visualizations showing point positions, density gradients, scale, and rotations directly in Godot's editor.
-* **Searchable Data Inspector**: Spreadsheet/table inspector showcasing attributes at any node, with active highlighting linked back to the 3D viewport.
+* **Interactive 3D Viewport Debugging**: Toggle 3D visualizations showing point positions, density gradients, scale, and rotations directly in Godot's editor (select a node and press **`D`**).
+* **Searchable Data Inspector**: Spreadsheet/table inspector showcasing attributes at any node, with active highlighting linked back to the 3D viewport (select a node and press **`E`**).
 * **Subgraphs & Loops**: Nest graphs with local parameters, custom outputs, and feedback loops.
 * **Core Tagging Support**: A dedicated `tags` property (`PackedStringArray`) inside data elements for tag-based filtering.
 * **Copy/Paste**: Import/export graph components instantly as JSON.
@@ -22,27 +22,9 @@
 
 ---
 
-## 🔍 Interactive Debugging & Analysis Modes
-
-PCGODOT features interactive inspection utilities to debug procedural logic without compiling your game.
-
-### 1. 3D Editor Debug View (Press `D`)
-Select any node in the graph and press **`D`** (or toggle `debug_enabled` in the Inspector) to visualize generated points directly inside Godot's 3D viewport:
-* **Debug Mode**: Toggle between `EXTENDS` (uses the point's actual bounds/scale) and `ABSOLUTE` (renders uniform debug cubes scaled by `debug_scale`).
-* **Modulate Color**: Modulate debug colors dynamically by typing an attribute name (e.g. `density` or `color`) in the **Debug Modulate By** setting.
-* **Debug Port Selector**: Pick which output port/data bulk to draw.
-
-### 2. Searchable Data Inspector (Press `E`)
-Press **`E`** (or select a node and click Inspect) to open the bottom **Data Inspector** spreadsheet:
-* View a real-time, spreadsheet view of all point attributes (coordinates, rotations, scales, weights, and tags).
-* **Attribute Filtering**: Search and filter points instantly using the filter bar (e.g., search for specific tags or range numbers).
-* **Cross-Highlighting**: Click any row in the spreadsheet, and the matching point in the 3D viewport will highlight in Magenta and scale up, making it trivial to find which point matches which database row.
-
----
-
 ## 📂 Node Library Reference
 
-PCGODOT organizes nodes according to the official Unreal Engine PCG structure, expanded with custom Godot helpers. For detailed documentation on what each node does and to view their source code, see the **[PCGODOT Node Library Reference](demo/addons/flow_nodes_editor/doc/nodes_reference.md)**.
+PCGODOT organizes nodes into a clean category structure, expanded with custom Godot helpers. For detailed documentation on what each node does and to view their source code, see the **[PCGODOT Node Library Reference](demo/addons/flow_nodes_editor/doc/nodes_reference.md)**.
 
 ### 📁 Category Overview:
 1. **Subgraphs & Control Flow**: Nested subgraphs (`subgraph.gd`), loops (`loop.gd`), inputs/outputs, branches, select nodes, and conditional switches.
@@ -67,7 +49,7 @@ Distribute different subscenes randomly along curves and paths using attributes,
 ![Random Subscenes](demo/addons/flow_nodes_editor/doc/demo_random_subscenes.png)
 
 ### 3. Unified Filters & Category Popup
-Browse nodes structured into standardized categories matching Unreal PCG. Select filters such as `Filter Data by Attribute`, `Filter Data by Tag`, and `Filter Data by Type`.
+Browse nodes structured into standardized categories. Select filters such as `Filter Data by Attribute`, `Filter Data by Tag`, and `Filter Data by Type`.
 ![Filters](demo/addons/flow_nodes_editor/doc/demo_filter.png)
 
 ### 4. Proximity Sampling & Distance to Density
