@@ -112,5 +112,12 @@ Precompiled binaries for Windows and macOS are included under `demo/bin/` by def
 
 ---
 
-## 📄 License
-This project is licensed under the Apache License 2.0. Feel free to adapt and expand it!
+## 📄 License & Attributions
+
+This project is licensed under the Apache License 2.0. 
+
+PCGODOT is a fork and feature-rich expansion of the original **[flownode](https://github.com/miskatonicstudio/flownode)** project created by Miskatonic Studio (originally licensed under the Apache License 2.0). In accordance with the license terms:
+* The original copyright and license attributions from `flownode` have been preserved.
+* This repository contains substantial modifications and new features built on top of the original source code.
+
+See the [LICENSE](LICENSE) file for the full terms and conditions.
