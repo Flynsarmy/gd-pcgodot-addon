@@ -1437,6 +1437,22 @@ func _get_hotkey_target_nodes() -> Array:
 		return [hovered]
 	return getSelectedNodes()
 
+func _refresh_inspector_if_showing_nodes(nodes: Array):
+	if not inspector:
+		return
+	for node in nodes:
+		if not is_instance_valid(node) or not (node is FlowNodeBase):
+			continue
+		if inspector.current_target == node:
+			inspector.edit(node)
+			return
+		if node.settings and inspector.current_target == node.settings:
+			inspector.edit(node.settings)
+			return
+		if inspected_node == node or (node.settings and inspector.current_settings == node.settings):
+			inspector.edit(node)
+			return
+
 func _hotkey_toggle_debug():
 	var nodes = _get_hotkey_target_nodes()
 	if nodes.is_empty():
@@ -1452,18 +1468,22 @@ func _hotkey_toggle_debug():
 			names.append(node.settings.title)
 	var state_str = "ON" if new_state else "OFF"
 	update_status_bar("Debug %s: %s" % [state_str, ", ".join(names)])
+	_refresh_inspector_if_showing_nodes(nodes)
 	queueRegen()
 
 func _hotkey_clear_all_debug():
 	var count := 0
+	var changed_nodes := []
 	for child in gedit.get_children():
 		var node = child as FlowNodeBase
 		if node and node.settings and node.settings.debug_enabled:
 			node.settings.debug_enabled = false
 			node.dirty = true
 			node.refreshFromSettings()
+			changed_nodes.append(node)
 			count += 1
 	update_status_bar("Debug cleared on %d nodes" % count)
+	_refresh_inspector_if_showing_nodes(changed_nodes)
 	queueRegen()
 
 func _hotkey_toggle_inspect():
@@ -1547,6 +1567,7 @@ func analyzeNode(node: FlowNodeBase):
 	if not data_inspector:
 		return
 	var prev_auto_regen := auto_regen
+	var previous_node = data_inspector.node
 	auto_regen = false
 	# Toggle off: if analyzer is open on the same node
 	if analyze_panel and analyze_panel.visible:
@@ -1555,6 +1576,7 @@ func analyzeNode(node: FlowNodeBase):
 			_set_analyze_panel_visible(false)
 			auto_regen = prev_auto_regen
 			regen_pending = false
+			_refresh_inspector_if_showing_nodes([node])
 			return
 	data_inspector.setNode(null)
 	data_inspector.setNode(node)
@@ -1566,6 +1588,7 @@ func analyzeNode(node: FlowNodeBase):
 	regen_pending = false
 	evalGraph()
 	data_inspector.refresh()
+	_refresh_inspector_if_showing_nodes([previous_node, node])
 	if make_inspector_visible and make_inspector_visible.is_valid():
 		make_inspector_visible.call()
 
@@ -2198,6 +2221,7 @@ func analyzeSelection():
 		return
 	var nodes = getSelectedNodes()
 	var prev_auto_regen := auto_regen
+	var previous_node = data_inspector.node
 	auto_regen = false
 	# Toggle off: if analyzer is open and user re-runs Analyze on the same node (or with no node selected).
 	if analyze_panel and analyze_panel.visible:
@@ -2206,12 +2230,14 @@ func analyzeSelection():
 			_set_analyze_panel_visible(false)
 			auto_regen = prev_auto_regen
 			regen_pending = false
+			_refresh_inspector_if_showing_nodes([previous_node])
 			return
 	if nodes.size() != 1:
 		data_inspector.setNode(null)
 		_set_analyze_panel_visible(false)
 		auto_regen = prev_auto_regen
 		regen_pending = false
+		_refresh_inspector_if_showing_nodes([previous_node])
 		return
 	var node = nodes[0]
 	# Force rebind so repeated Analyze on the same node stays active.
@@ -2225,6 +2251,7 @@ func analyzeSelection():
 	regen_pending = false
 	evalGraph()
 	data_inspector.refresh()
+	_refresh_inspector_if_showing_nodes([previous_node, node])
 	if make_inspector_visible and make_inspector_visible.is_valid():
 		make_inspector_visible.call()
 

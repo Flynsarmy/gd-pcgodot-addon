@@ -34,7 +34,7 @@ var line_edit: LineEdit
 var scroll: ScrollContainer
 var list_vbox: VBoxContainer
 
-var all_items: Array[Dictionary] = [] # Array of { "type": "node"|"action"|"input", "key": Variant, "label": String, "category": String, "button_node": Button }
+var all_items: Array[Dictionary] = [] # Array of { "type": "node"|"action"|"input", "key": Variant, "label": String, "category": String }
 var visible_items: Array[Dictionary] = []
 var highlighted_index: int = -1
 var recently_used: Array[String] = [] # Ordered list of recently used template names (most recent first)
@@ -505,13 +505,18 @@ func _highlight_category(category_name: String) -> void:
 			_set_highlight(idx)
 			return
 
+func _make_visible_item(item: Dictionary, button_node: Button) -> Dictionary:
+	var visible_item := item.duplicate()
+	visible_item.button_node = button_node
+	return visible_item
+
 func _create_menu_button(item: Dictionary, item_index: int, indent := 12, bold := false, base_color := Color("c8c8d4")) -> Button:
 	var btn = Button.new()
 	btn.text = _localized_label(item)
 	btn.tooltip_text = _localized_tooltip(item)
 	_style_menu_button(btn, indent, bold, base_color)
 	btn.mouse_entered.connect(func():
-		_set_highlight(item_index)
+		_set_highlight(item_index, false)
 	)
 	btn.pressed.connect(func():
 		_select_item(item)
@@ -546,8 +551,7 @@ func rebuild_list():
 				btn.text = _node_path_label(item)
 			
 			list_vbox.add_child(btn)
-			item.button_node = btn
-			visible_items.append(item)
+			visible_items.append(_make_visible_item(item, btn))
 			item_index += 1
 	else:
 		# Empty search query -> show expandable category browsing.
@@ -560,8 +564,7 @@ func rebuild_list():
 			if item.type in ["action", "input", "output"]:
 				var btn = _create_menu_button(item, item_index)
 				list_vbox.add_child(btn)
-				item.button_node = btn
-				visible_items.append(item)
+				visible_items.append(_make_visible_item(item, btn))
 				item_index += 1
 
 		# Render "Recently Used" section
@@ -587,8 +590,7 @@ func rebuild_list():
 					continue
 				var btn = _create_menu_button(recent_item, item_index, 12, false, ACCENT_COLOR)
 				list_vbox.add_child(btn)
-				recent_item.button_node = btn
-				visible_items.append(recent_item)
+				visible_items.append(_make_visible_item(recent_item, btn))
 				item_index += 1
 			
 			# Small separator after recent
@@ -618,8 +620,7 @@ func rebuild_list():
 			var btn = _create_menu_button(cat_item, item_index, 12, true, Color("e5e7eb"))
 			btn.text = ("%s  %s" % ["▾" if expanded else "▸", _localized_node_category(cat)])
 			list_vbox.add_child(btn)
-			cat_item.button_node = btn
-			visible_items.append(cat_item)
+			visible_items.append(_make_visible_item(cat_item, btn))
 			item_index += 1
 			
 			if expanded:
@@ -627,8 +628,7 @@ func rebuild_list():
 					if item.type == "node" and item.category == cat:
 						var child_btn = _create_menu_button(item, item_index, 30)
 						list_vbox.add_child(child_btn)
-						item.button_node = child_btn
-						visible_items.append(item)
+						visible_items.append(_make_visible_item(item, child_btn))
 						item_index += 1
 
 	if visible_items.size() > 0:
@@ -712,7 +712,7 @@ func update_layout(hovered_button: Button = null):
 		submenu_popup.position = Vector2i(x, y)
 		call_deferred("_update_sub_scroll_arrows")
 
-func _set_highlight(index: int):
+func _set_highlight(index: int, scroll_to_item := true):
 	# Clear previous highlight
 	if highlighted_index >= 0 and highlighted_index < visible_items.size():
 		var old_item = visible_items[highlighted_index]
@@ -729,8 +729,8 @@ func _set_highlight(index: int):
 			new_item.button_node.add_theme_color_override("font_color", Color.WHITE)
 			var new_indent := int(new_item.button_node.get_meta("menu_indent", 12))
 			new_item.button_node.add_theme_stylebox_override("normal", _make_button_style(SELECTED_BG_COLOR, new_indent, true))
-			# Ensure it is visible in scroll container
-			_ensure_visible(new_item.button_node)
+			if scroll_to_item:
+				_ensure_visible(new_item.button_node)
 
 func _ensure_visible(ctrl: Control):
 	var scroll_y = scroll.scroll_vertical
