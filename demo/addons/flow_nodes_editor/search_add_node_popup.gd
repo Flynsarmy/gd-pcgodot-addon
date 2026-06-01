@@ -10,8 +10,6 @@ signal output_selected(output_idx: int)
 const IDM_COLLAPSE_TO_SUBGRAPH = 200
 
 # Theme colors
-const BG_COLOR = Color("1b1e28")
-const BORDER_COLOR = Color("252836")
 const ACCENT_COLOR = Color("22d3ee") # Cyan accent
 const HOVER_BG_COLOR = Color("2a3142")
 const SELECTED_BG_COLOR = Color("334155")
@@ -55,8 +53,6 @@ var sub_scroll_max := 0.0
 
 var active_hovered_category = ""
 var sub_panel_hide_timer: SceneTreeTimer = null
-var main_sb: StyleBoxFlat
-var sub_sb: StyleBoxFlat
 
 func _ready():
 	# Configure popup window/panel
@@ -67,14 +63,6 @@ func _ready():
 	exclusive = false
 	min_size = Vector2i(MENU_WIDTH, 0)
 
-	# Apply PanelContainer style to self
-	main_sb = StyleBoxFlat.new()
-	main_sb.bg_color = BG_COLOR
-	main_sb.set_border_width_all(1)
-	main_sb.border_color = Color(1.0, 1.0, 1.0, 0.1)
-	main_sb.set_corner_radius_all(6)
-	add_theme_stylebox_override("panel", main_sb)
-	
 	var main_vbox = VBoxContainer.new()
 	main_vbox.custom_minimum_size.x = MENU_WIDTH
 	main_vbox.add_theme_constant_override("separation", 0)
@@ -137,14 +125,7 @@ func _ready():
 	submenu_popup.unresizable = true
 	submenu_popup.transient = true
 	submenu_popup.exclusive = false
-	
-	sub_sb = StyleBoxFlat.new()
-	sub_sb.bg_color = BG_COLOR
-	sub_sb.set_border_width_all(1)
-	sub_sb.border_color = Color(1.0, 1.0, 1.0, 0.1)
-	sub_sb.set_corner_radius_all(6)
-	submenu_popup.add_theme_stylebox_override("panel", sub_sb)
-	
+
 	submenu_popup.mouse_entered.connect(func():
 		_cancel_sub_panel_hide_timer()
 	)
@@ -435,7 +416,7 @@ func _update_sub_scroll_arrows():
 	sub_scroll_up_btn.disabled = false
 	sub_scroll_down_btn.disabled = false
 
-func _make_button_style(bg_color: Color, indent: int, with_border := false) -> StyleBoxFlat:
+func _make_button_style(bg_color: Color, indent: int) -> StyleBoxFlat:
 	var style = StyleBoxFlat.new()
 	style.bg_color = bg_color
 	style.set_corner_radius_all(4)
@@ -443,9 +424,6 @@ func _make_button_style(bg_color: Color, indent: int, with_border := false) -> S
 	style.content_margin_right = 12
 	style.content_margin_top = 4
 	style.content_margin_bottom = 4
-	if with_border:
-		style.border_width_left = 2
-		style.border_color = ACCENT_COLOR
 	return style
 
 func _make_empty_button_style(indent: int) -> StyleBoxEmpty:
@@ -481,7 +459,7 @@ func _style_menu_button(btn: Button, indent := 12, bold := false, base_color := 
 
 	var sb_hover = _make_button_style(HOVER_BG_COLOR, indent)
 	btn.add_theme_stylebox_override("hover", sb_hover)
-	btn.add_theme_stylebox_override("pressed", _make_button_style(SELECTED_BG_COLOR, indent, true))
+	btn.add_theme_stylebox_override("pressed", _make_button_style(SELECTED_BG_COLOR, indent))
 	btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 
 func _is_category_expanded(category_name: String) -> bool:
@@ -728,7 +706,7 @@ func _set_highlight(index: int, scroll_to_item := true):
 		if is_instance_valid(new_item.button_node):
 			new_item.button_node.add_theme_color_override("font_color", Color.WHITE)
 			var new_indent := int(new_item.button_node.get_meta("menu_indent", 12))
-			new_item.button_node.add_theme_stylebox_override("normal", _make_button_style(SELECTED_BG_COLOR, new_indent, true))
+			new_item.button_node.add_theme_stylebox_override("normal", _make_button_style(SELECTED_BG_COLOR, new_indent))
 			if scroll_to_item:
 				_ensure_visible(new_item.button_node)
 
