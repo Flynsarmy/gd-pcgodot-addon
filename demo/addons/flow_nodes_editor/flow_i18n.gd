@@ -2,90 +2,120 @@
 extends RefCounted
 class_name FlowI18n
 
-static var node_translation_enabled := true
+const BUILTIN_DOMAIN := "__flow__"
+const LOCALE_DIR := "res://addons/flow_nodes_editor/locale"
 
-const ZH_CN := {
-	"Actions": "操作",
-	"Analyze": "分析",
-	"Assets": "资源",
-	"Attributes": "属性",
-	"Auto Regen": "自动再生成",
-	"Back": "返回",
-	"Collapse": "收起",
-	"Collapse Selected to Subgraph": "将所选折叠为子图",
-	"Color Nodes": "节点着色",
-	"connections": "连接",
-	"Control Flow": "控制流",
-	"Could not float graph panel": "无法浮动图面板",
-	"Data Flow": "数据流",
-	"Debug": "调试",
-	"Density": "密度",
-	"Expand": "展开",
-	"Filter": "过滤",
-	"Flow Editor": "Flow 编辑器",
-	"Float and Maximize Graph Panel": "浮动并最大化图面板",
-	"Generators": "生成器",
-	"Graph panel floated": "图面板已浮动",
-	"Graph panel floating is disabled": "图面板浮动已禁用",
-	"Info": "信息",
-	"Input: %s": "输入：%s",
-	"Inputs": "输入",
-	"Inputs...": "输入...",
-	"Inspect selected node raw data (A)": "检查所选节点的原始数据 (A)",
-	"Math": "数学",
-	"Meshes": "网格",
-	"Metadata": "元数据",
-	"Native GraphEdit Grid": "原生 GraphEdit 网格",
-	"No inputs defined": "未定义输入",
-	"No outputs defined": "未定义输出",
-	"Node Language": "节点语言",
-	"nodes": "节点",
-	"Open a FlowGraph resource": "打开 FlowGraph 资源",
-	"Open Graph": "打开图",
-	"Output: %s": "输出：%s",
-	"Outputs": "输出",
-	"Outputs...": "输出...",
-	"Point Ops": "点操作",
-	"Promote To Parameter": "提升为参数",
-	"Ready": "就绪",
-	"Recently Used": "最近使用",
-	"Regenerate": "重新生成",
-	"Reload": "重新加载",
-	"Sampler": "采样器",
-	"Save Resource": "保存资源",
-	"Search nodes...": "搜索节点...",
-	"Settings": "设置",
-	"Spatial": "空间",
-	"Splines": "样条",
-	"Translate Nodes": "翻译节点",
-	"Utility": "工具",
-}
+static var node_translation_enabled := true
+static var _external_domains: Array[String] = []
+static var _locale_directories := {}
+static var _message_cache := {}
+
 
 static func t(message: String) -> String:
-	if _uses_simplified_chinese():
-		return ZH_CN.get(message, message)
-	return message
+	var locale := _current_locale_key()
+	var external_message = _external_message(message, locale)
+	if external_message != null:
+		return str(external_message)
+	var builtin_messages := _messages_for_domain(BUILTIN_DOMAIN, locale)
+	return str(builtin_messages.get(message, message))
+
 
 static func tn(message: String) -> String:
 	if node_translation_enabled:
 		return t(message)
 	return message
 
+
 static func trf(message: String, values: Array) -> String:
 	return t(message) % values
 
-static func count(value: int, label: String) -> String:
-	if _uses_simplified_chinese():
-		return "%d 个%s" % [value, t(label)]
-	return "%d %s" % [value, t(label)]
 
-static func set_node_translation_enabled(enabled: bool):
+static func count(value: int, label: String) -> String:
+	return t("%d %s") % [value, t(label)]
+
+
+static func set_node_translation_enabled(enabled: bool) -> void:
 	node_translation_enabled = enabled
+
 
 static func is_node_translation_enabled() -> bool:
 	return node_translation_enabled
 
-static func _uses_simplified_chinese() -> bool:
+
+static func register_external_locale_directory(domain: String, locale_directory: String) -> void:
+	var normalized_domain := domain.strip_edges()
+	if normalized_domain.is_empty():
+		return
+	var normalized_directory := locale_directory.strip_edges()
+	if normalized_directory.is_empty():
+		return
+	_ensure_builtin_locale_directory()
+	_locale_directories[normalized_domain] = normalized_directory
+	_message_cache.erase(normalized_domain)
+	if not _external_domains.has(normalized_domain):
+		_external_domains.append(normalized_domain)
+
+
+static func unregister_external_locale_directory(domain: String) -> void:
+	var normalized_domain := domain.strip_edges()
+	if normalized_domain.is_empty():
+		return
+	_locale_directories.erase(normalized_domain)
+	_message_cache.erase(normalized_domain)
+	_external_domains.erase(normalized_domain)
+
+
+static func reload_locale_files() -> void:
+	_message_cache.clear()
+
+
+static func _external_message(message: String, locale: String) -> Variant:
+	_ensure_builtin_locale_directory()
+	for domain in _external_domains:
+		var domain_messages := _messages_for_domain(domain, locale)
+		if domain_messages.has(message):
+			return domain_messages[message]
+	return null
+
+
+static func _messages_for_domain(domain: String, locale: String) -> Dictionary:
+	_ensure_builtin_locale_directory()
+	if not _locale_directories.has(domain):
+		return {}
+	if not _message_cache.has(domain):
+		_message_cache[domain] = {}
+	var domain_cache: Dictionary = _message_cache[domain]
+	if domain_cache.has(locale):
+		return domain_cache[locale]
+	var messages := _load_locale_messages(str(_locale_directories[domain]), locale)
+	domain_cache[locale] = messages
+	return messages
+
+
+static func _load_locale_messages(locale_directory: String, locale: String) -> Dictionary:
+	var path := locale_directory.path_join(locale + ".json")
+	if not FileAccess.file_exists(path):
+		return {}
+	var parsed = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not (parsed is Dictionary):
+		push_warning("FlowI18n locale file is not a dictionary: " + path)
+		return {}
+	var root: Dictionary = parsed
+	if root.has("flow") and root["flow"] is Dictionary:
+		return _string_dictionary(root["flow"])
+	if root.has("messages") and root["messages"] is Dictionary:
+		return _string_dictionary(root["messages"])
+	return _string_dictionary(root)
+
+
+static func _string_dictionary(messages: Dictionary) -> Dictionary:
+	var result := {}
+	for key in messages.keys():
+		result[str(key)] = str(messages[key])
+	return result
+
+
+static func _current_locale_key() -> String:
 	var locale := TranslationServer.get_locale()
 	if Engine.is_editor_hint():
 		var editor_settings := EditorInterface.get_editor_settings()
@@ -93,5 +123,24 @@ static func _uses_simplified_chinese() -> bool:
 			var editor_locale := String(editor_settings.get_setting("interface/editor/editor_language"))
 			if not editor_locale.is_empty():
 				locale = editor_locale
-	locale = locale.to_lower().replace("-", "_")
-	return locale == "zh" or locale.begins_with("zh_cn") or locale.begins_with("zh_hans") or locale.begins_with("zh_sg")
+	return _normalize_locale(locale)
+
+
+static func _normalize_locale(locale: String) -> String:
+	var normalized := locale.strip_edges().to_lower().replace("-", "_")
+	var is_chinese := (
+		normalized == "zh"
+		or normalized.begins_with("zh_cn")
+		or normalized.begins_with("zh_hans")
+		or normalized.begins_with("zh_sg")
+	)
+	if is_chinese:
+		return "zh_CN"
+	if normalized.begins_with("en"):
+		return "en"
+	return normalized
+
+
+static func _ensure_builtin_locale_directory() -> void:
+	if not _locale_directories.has(BUILTIN_DOMAIN):
+		_locale_directories[BUILTIN_DOMAIN] = LOCALE_DIR
