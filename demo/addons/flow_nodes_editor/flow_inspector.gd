@@ -1030,6 +1030,225 @@ func _create_separator_stylebox() -> StyleBoxLine:
 	sbl.thickness = 1
 	return sbl
 
+func _create_graph_parameter_panel(res: FlowGraphResource, params: Array, param: GraphInputParameter, idx: int, prop_name: String, include_value: bool) -> PanelContainer:
+	var param_panel = PanelContainer.new()
+	var p_style = StyleBoxFlat.new()
+	p_style.bg_color = Color("252836")
+	p_style.set_corner_radius_all(6)
+	p_style.content_margin_left = 8
+	p_style.content_margin_right = 8
+	p_style.content_margin_top = 6
+	p_style.content_margin_bottom = 6
+	param_panel.add_theme_stylebox_override("panel", p_style)
+
+	var row = HBoxContainer.new()
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_theme_constant_override("separation", 6)
+	param_panel.add_child(row)
+
+	var le_name = LineEdit.new()
+	le_name.text = param.name
+	le_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	le_name.add_theme_font_size_override("font_size", 11)
+	_style_parameter_line_edit(le_name)
+	le_name.text_submitted.connect(func(new_text):
+		_update_graph_parameter_name(res, param, prop_name, le_name, new_text)
+	)
+	le_name.focus_exited.connect(func():
+		_update_graph_parameter_name(res, param, prop_name, le_name, le_name.text)
+	)
+	row.add_child(le_name)
+
+	row.add_child(_create_graph_parameter_type_button(res, param, prop_name))
+
+	if include_value:
+		var val_ctrl = _create_graph_parameter_value_control(res, param, prop_name)
+		if val_ctrl:
+			val_ctrl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			row.add_child(val_ctrl)
+
+	var btn_del = Button.new()
+	btn_del.text = "X"
+	btn_del.flat = true
+	btn_del.custom_minimum_size.x = 24
+	btn_del.add_theme_color_override("font_color", Color("ef4444"))
+	btn_del.pressed.connect(func():
+		params.remove_at(idx)
+		res.emit_changed()
+		property_edited.emit(prop_name)
+		edit(res)
+	)
+	row.add_child(btn_del)
+
+	return param_panel
+
+func _style_parameter_line_edit(line_edit: LineEdit):
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color("111318")
+	sb.set_corner_radius_all(3)
+	sb.content_margin_left = 6
+	sb.content_margin_right = 6
+	line_edit.add_theme_stylebox_override("normal", sb)
+
+func _update_graph_parameter_name(res: FlowGraphResource, param: GraphInputParameter, prop_name: String, line_edit: LineEdit, new_text: String):
+	if param.name == new_text:
+		return
+	param.name = new_text
+	param.emit_changed()
+	res.emit_changed()
+	property_edited.emit(prop_name)
+	line_edit.text = new_text
+
+func _create_graph_parameter_type_button(res: FlowGraphResource, param: GraphInputParameter, prop_name: String) -> OptionButton:
+	var opt_type = OptionButton.new()
+	opt_type.custom_minimum_size.x = 82
+	opt_type.size_flags_horizontal = Control.SIZE_FILL
+	opt_type.add_theme_font_size_override("font_size", 10)
+
+	var types_to_show = [
+		FlowData.DataType.Bool,
+		FlowData.DataType.Int,
+		FlowData.DataType.Float,
+		FlowData.DataType.Vector,
+		FlowData.DataType.String,
+		FlowData.DataType.Resource
+	]
+	for t_idx in range(types_to_show.size()):
+		var t_val = types_to_show[t_idx]
+		var t_name = FlowData.DataType.keys()[t_val]
+		opt_type.add_item(t_name, t_val)
+		if param.data_type == t_val:
+			opt_type.selected = t_idx
+
+	opt_type.get_popup().min_size = Vector2i(180, 0)
+	_style_parameter_type_button(opt_type, param.data_type)
+	opt_type.item_selected.connect(func(id_index):
+		var new_type = opt_type.get_item_id(id_index)
+		param.data_type = new_type
+		param.emit_changed()
+		res.emit_changed()
+		property_edited.emit(prop_name)
+		edit(res)
+	)
+	return opt_type
+
+func _style_parameter_type_button(opt_type: OptionButton, data_type: FlowData.DataType):
+	var type_color := FlowNodeBase.getColorForFlowDataType(data_type)
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = type_color.darkened(0.45)
+	normal.set_border_width_all(1)
+	normal.border_color = type_color.darkened(0.05)
+	normal.set_corner_radius_all(3)
+	normal.content_margin_left = 6
+	normal.content_margin_right = 6
+	opt_type.add_theme_stylebox_override("normal", normal)
+
+	var hover := normal.duplicate()
+	hover.bg_color = type_color.darkened(0.32)
+	opt_type.add_theme_stylebox_override("hover", hover)
+	opt_type.add_theme_stylebox_override("pressed", hover)
+	opt_type.add_theme_color_override("font_color", Color.WHITE)
+	opt_type.add_theme_color_override("font_hover_color", Color.WHITE)
+	opt_type.add_theme_color_override("font_pressed_color", Color.WHITE)
+
+func _create_graph_parameter_value_control(res: FlowGraphResource, param: GraphInputParameter, prop_name: String) -> Control:
+	match param.data_type:
+		FlowData.DataType.Bool:
+			var checkbox = CheckBox.new()
+			checkbox.button_pressed = param.cte_bool
+			checkbox.toggled.connect(func(pressed):
+				param.cte_bool = pressed
+				_emit_graph_parameter_changed(res, param, prop_name)
+			)
+			return checkbox
+		FlowData.DataType.Int:
+			var spin_int = SpinBox.new()
+			spin_int.min_value = -999999
+			spin_int.max_value = 999999
+			spin_int.step = 1
+			spin_int.value = param.cte_int
+			spin_int.value_changed.connect(func(new_val):
+				param.cte_int = int(new_val)
+				_emit_graph_parameter_changed(res, param, prop_name)
+			)
+			return spin_int
+		FlowData.DataType.Float:
+			var spin_float = SpinBox.new()
+			spin_float.min_value = -999999.0
+			spin_float.max_value = 999999.0
+			spin_float.step = 0.01
+			spin_float.value = param.cte_float
+			spin_float.value_changed.connect(func(new_val):
+				param.cte_float = new_val
+				_emit_graph_parameter_changed(res, param, prop_name)
+			)
+			return spin_float
+		FlowData.DataType.Vector:
+			var vec_hbox = HBoxContainer.new()
+			vec_hbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			for axis in ["x", "y", "z"]:
+				var sb_axis = SpinBox.new()
+				sb_axis.min_value = -999999.0
+				sb_axis.max_value = 999999.0
+				sb_axis.step = 0.01
+				sb_axis.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				if axis == "x":
+					sb_axis.value = param.cte_vector.x
+					sb_axis.value_changed.connect(func(nv):
+						param.cte_vector.x = nv
+						_emit_graph_parameter_changed(res, param, prop_name)
+					)
+				elif axis == "y":
+					sb_axis.value = param.cte_vector.y
+					sb_axis.value_changed.connect(func(nv):
+						param.cte_vector.y = nv
+						_emit_graph_parameter_changed(res, param, prop_name)
+					)
+				else:
+					sb_axis.value = param.cte_vector.z
+					sb_axis.value_changed.connect(func(nv):
+						param.cte_vector.z = nv
+						_emit_graph_parameter_changed(res, param, prop_name)
+					)
+				vec_hbox.add_child(sb_axis)
+			return vec_hbox
+		FlowData.DataType.String:
+			var line_edit = LineEdit.new()
+			line_edit.text = param.cte_string
+			_style_parameter_line_edit(line_edit)
+			line_edit.text_submitted.connect(func(new_text):
+				param.cte_string = new_text
+				_emit_graph_parameter_changed(res, param, prop_name)
+			)
+			line_edit.focus_exited.connect(func():
+				if param.cte_string != line_edit.text:
+					param.cte_string = line_edit.text
+					_emit_graph_parameter_changed(res, param, prop_name)
+			)
+			return line_edit
+		FlowData.DataType.Resource:
+			var res_hbox = HBoxContainer.new()
+			var res_lbl = Label.new()
+			res_lbl.text = "None" if param.cte_resource == null else param.cte_resource.resource_path.get_file()
+			res_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			res_lbl.clip_text = true
+			res_lbl.add_theme_font_size_override("font_size", 11)
+			res_hbox.add_child(res_lbl)
+
+			var res_btn = Button.new()
+			res_btn.text = "..."
+			res_btn.pressed.connect(func():
+				_show_file_dialog_for_param_resource(param, res_lbl, res, prop_name)
+			)
+			res_hbox.add_child(res_btn)
+			return res_hbox
+	return null
+
+func _emit_graph_parameter_changed(res: FlowGraphResource, param: GraphInputParameter, prop_name: String):
+	param.emit_changed()
+	res.emit_changed()
+	property_edited.emit(prop_name)
+
 func _populate_graph_resource_properties(res: FlowGraphResource):
 	_add_header("Graph Inputs", res.resource_path.get_file() if res.resource_path != "" else "Unsaved Resource")
 	
@@ -1042,233 +1261,8 @@ func _populate_graph_resource_properties(res: FlowGraphResource):
 		var param = res.in_params[idx]
 		if not param:
 			continue
-			
-		var param_panel = PanelContainer.new()
-		var p_style = StyleBoxFlat.new()
-		p_style.bg_color = Color("252836") # card HSL background
-		p_style.set_corner_radius_all(6)
-		p_style.content_margin_left = 8
-		p_style.content_margin_right = 8
-		p_style.content_margin_top = 8
-		p_style.content_margin_bottom = 8
-		param_panel.add_theme_stylebox_override("panel", p_style)
-		
-		var param_vbox = VBoxContainer.new()
-		param_vbox.add_theme_constant_override("separation", 6)
-		param_panel.add_child(param_vbox)
-		
-		# Name row with Delete button
-		var name_row = HBoxContainer.new()
-		name_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		
-		var lbl_name = Label.new()
-		lbl_name.text = "Name"
-		lbl_name.add_theme_font_size_override("font_size", 11)
-		lbl_name.custom_minimum_size.x = 50
-		name_row.add_child(lbl_name)
-		
-		var le_name = LineEdit.new()
-		le_name.text = param.name
-		le_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		le_name.add_theme_font_size_override("font_size", 11)
-		
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color("111318")
-		sb.set_corner_radius_all(3)
-		sb.content_margin_left = 6
-		sb.content_margin_right = 6
-		le_name.add_theme_stylebox_override("normal", sb)
-		
-		# Hook up focus/submitted to rename parameter and refresh
-		le_name.text_submitted.connect(func(new_text):
-			param.name = new_text
-			param.emit_changed()
-			res.emit_changed()
-			property_edited.emit("in_params")
-		)
-		le_name.focus_exited.connect(func():
-			if param.name != le_name.text:
-				param.name = le_name.text
-				param.emit_changed()
-				res.emit_changed()
-				property_edited.emit("in_params")
-		)
-		name_row.add_child(le_name)
-		
-		var btn_del = Button.new()
-		btn_del.text = "X"
-		btn_del.flat = true
-		btn_del.add_theme_color_override("font_color", Color("ef4444"))
-		btn_del.pressed.connect(func():
-			res.in_params.remove_at(idx)
-			res.emit_changed()
-			property_edited.emit("in_params")
-			edit(res) # refresh inspector
-		)
-		name_row.add_child(btn_del)
-		param_vbox.add_child(name_row)
-		
-		# Type row
-		var type_row = HBoxContainer.new()
-		var lbl_type = Label.new()
-		lbl_type.text = "Type"
-		lbl_type.add_theme_font_size_override("font_size", 11)
-		lbl_type.custom_minimum_size.x = 50
-		type_row.add_child(lbl_type)
-		
-		var opt_type = OptionButton.new()
-		opt_type.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		opt_type.add_theme_font_size_override("font_size", 11)
-		
-		var types_to_show = [
-			FlowData.DataType.Bool,
-			FlowData.DataType.Int,
-			FlowData.DataType.Float,
-			FlowData.DataType.Vector,
-			FlowData.DataType.String,
-			FlowData.DataType.Resource
-		]
-		for t_idx in range(types_to_show.size()):
-			var t_val = types_to_show[t_idx]
-			var t_name = FlowData.DataType.keys()[t_val]
-			opt_type.add_item(t_name, t_val)
-			if param.data_type == t_val:
-				opt_type.selected = t_idx
-				
-		opt_type.item_selected.connect(func(id_index):
-			var new_type = opt_type.get_item_id(id_index)
-			param.data_type = new_type
-			param.emit_changed()
-			res.emit_changed()
-			property_edited.emit("in_params")
-			edit(res) # refresh to update value control type
-		)
-		type_row.add_child(opt_type)
-		param_vbox.add_child(type_row)
-		
-		# Value row
-		var val_row = HBoxContainer.new()
-		var lbl_val = Label.new()
-		lbl_val.text = "Value"
-		lbl_val.add_theme_font_size_override("font_size", 11)
-		lbl_val.custom_minimum_size.x = 50
-		val_row.add_child(lbl_val)
-		
-		var val_ctrl: Control = null
-		match param.data_type:
-			FlowData.DataType.Bool:
-				val_ctrl = CheckBox.new()
-				val_ctrl.button_pressed = param.cte_bool
-				val_ctrl.toggled.connect(func(pressed):
-					param.cte_bool = pressed
-					param.emit_changed()
-					res.emit_changed()
-					property_edited.emit("in_params")
-				)
-			FlowData.DataType.Int:
-				val_ctrl = SpinBox.new()
-				val_ctrl.min_value = -999999
-				val_ctrl.max_value = 999999
-				val_ctrl.step = 1
-				val_ctrl.value = param.cte_int
-				val_ctrl.value_changed.connect(func(new_val):
-					param.cte_int = int(new_val)
-					param.emit_changed()
-					res.emit_changed()
-					property_edited.emit("in_params")
-				)
-			FlowData.DataType.Float:
-				val_ctrl = SpinBox.new()
-				val_ctrl.min_value = -999999.0
-				val_ctrl.max_value = 999999.0
-				val_ctrl.step = 0.01
-				val_ctrl.value = param.cte_float
-				val_ctrl.value_changed.connect(func(new_val):
-					param.cte_float = new_val
-					param.emit_changed()
-					res.emit_changed()
-					property_edited.emit("in_params")
-				)
-			FlowData.DataType.Vector:
-				var vec_hbox = HBoxContainer.new()
-				vec_hbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-				for axis in ["x", "y", "z"]:
-					var sb_axis = SpinBox.new()
-					sb_axis.min_value = -999999.0
-					sb_axis.max_value = 999999.0
-					sb_axis.step = 0.01
-					sb_axis.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-					if axis == "x":
-						sb_axis.value = param.cte_vector.x
-						sb_axis.value_changed.connect(func(nv):
-							param.cte_vector.x = nv
-							param.emit_changed()
-							res.emit_changed()
-							property_edited.emit("in_params")
-						)
-					elif axis == "y":
-						sb_axis.value = param.cte_vector.y
-						sb_axis.value_changed.connect(func(nv):
-							param.cte_vector.y = nv
-							param.emit_changed()
-							res.emit_changed()
-							property_edited.emit("in_params")
-						)
-					else:
-						sb_axis.value = param.cte_vector.z
-						sb_axis.value_changed.connect(func(nv):
-							param.cte_vector.z = nv
-							param.emit_changed()
-							res.emit_changed()
-							property_edited.emit("in_params")
-						)
-					vec_hbox.add_child(sb_axis)
-				val_ctrl = vec_hbox
-			FlowData.DataType.String:
-				val_ctrl = LineEdit.new()
-				val_ctrl.text = param.cte_string
-				var val_sb := StyleBoxFlat.new()
-				val_sb.bg_color = Color("111318")
-				val_sb.set_corner_radius_all(3)
-				val_sb.content_margin_left = 6
-				val_sb.content_margin_right = 6
-				val_ctrl.add_theme_stylebox_override("normal", val_sb)
-				val_ctrl.text_submitted.connect(func(new_text):
-					param.cte_string = new_text
-					param.emit_changed()
-					res.emit_changed()
-					property_edited.emit("in_params")
-				)
-				val_ctrl.focus_exited.connect(func():
-					if param.cte_string != val_ctrl.text:
-						param.cte_string = val_ctrl.text
-						param.emit_changed()
-						res.emit_changed()
-						property_edited.emit("in_params")
-				)
-			FlowData.DataType.Resource:
-				var res_hbox = HBoxContainer.new()
-				var res_lbl = Label.new()
-				res_lbl.text = "None" if param.cte_resource == null else param.cte_resource.resource_path.get_file()
-				res_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-				res_lbl.clip_text = true
-				res_lbl.add_theme_font_size_override("font_size", 11)
-				res_hbox.add_child(res_lbl)
-				
-				var res_btn = Button.new()
-				res_btn.text = "..."
-				res_btn.pressed.connect(func():
-					_show_file_dialog_for_param_resource(param, res_lbl, res)
-				)
-				res_hbox.add_child(res_btn)
-				val_ctrl = res_hbox
-				
-		if val_ctrl:
-			val_ctrl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			val_row.add_child(val_ctrl)
-		param_vbox.add_child(val_row)
-		
-		list_box.add_child(param_panel)
+
+		list_box.add_child(_create_graph_parameter_panel(res, res.in_params, param, idx, "in_params", true))
 		
 	# Add Parameter Button
 	var btn_add = Button.new()
@@ -1285,7 +1279,7 @@ func _populate_graph_resource_properties(res: FlowGraphResource):
 	)
 	content_vbox.add_child(btn_add)
 
-func _show_file_dialog_for_param_resource(param: GraphInputParameter, label: Label, parent_res: FlowGraphResource):
+func _show_file_dialog_for_param_resource(param: GraphInputParameter, label: Label, parent_res: FlowGraphResource, prop_name: String):
 	var fd = FileDialog.new()
 	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 	fd.access = FileDialog.ACCESS_RESOURCES
@@ -1295,7 +1289,7 @@ func _show_file_dialog_for_param_resource(param: GraphInputParameter, label: Lab
 			param.cte_resource = loaded_res
 			param.emit_changed()
 			parent_res.emit_changed()
-			property_edited.emit("in_params")
+			property_edited.emit(prop_name)
 			label.text = path.get_file()
 		fd.queue_free()
 	)
@@ -1317,111 +1311,8 @@ func _populate_graph_resource_outputs(res: FlowGraphResource):
 		var param = res.out_params[idx]
 		if not param:
 			continue
-			
-		var param_panel = PanelContainer.new()
-		var p_style = StyleBoxFlat.new()
-		p_style.bg_color = Color("252836") # card HSL background
-		p_style.set_corner_radius_all(6)
-		p_style.content_margin_left = 8
-		p_style.content_margin_right = 8
-		p_style.content_margin_top = 8
-		p_style.content_margin_bottom = 8
-		param_panel.add_theme_stylebox_override("panel", p_style)
-		
-		var param_vbox = VBoxContainer.new()
-		param_vbox.add_theme_constant_override("separation", 6)
-		param_panel.add_child(param_vbox)
-		
-		# Name row with Delete button
-		var name_row = HBoxContainer.new()
-		name_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		
-		var lbl_name = Label.new()
-		lbl_name.text = "Name"
-		lbl_name.add_theme_font_size_override("font_size", 11)
-		lbl_name.custom_minimum_size.x = 50
-		name_row.add_child(lbl_name)
-		
-		var le_name = LineEdit.new()
-		le_name.text = param.name
-		le_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		le_name.add_theme_font_size_override("font_size", 11)
-		
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color("111318")
-		sb.set_corner_radius_all(3)
-		sb.content_margin_left = 6
-		sb.content_margin_right = 6
-		le_name.add_theme_stylebox_override("normal", sb)
-		
-		# Hook up focus/submitted to rename parameter and refresh
-		le_name.text_submitted.connect(func(new_text):
-			param.name = new_text
-			param.emit_changed()
-			res.emit_changed()
-			property_edited.emit("out_params")
-		)
-		le_name.focus_exited.connect(func():
-			if param.name != le_name.text:
-				param.name = le_name.text
-				param.emit_changed()
-				res.emit_changed()
-				property_edited.emit("out_params")
-		)
-		name_row.add_child(le_name)
-		
-		var btn_del = Button.new()
-		btn_del.text = "X"
-		btn_del.flat = true
-		btn_del.add_theme_color_override("font_color", Color("ef4444"))
-		btn_del.pressed.connect(func():
-			res.out_params.remove_at(idx)
-			res.emit_changed()
-			property_edited.emit("out_params")
-			edit(res) # refresh inspector
-		)
-		name_row.add_child(btn_del)
-		param_vbox.add_child(name_row)
-		
-		# Type row
-		var type_row = HBoxContainer.new()
-		var lbl_type = Label.new()
-		lbl_type.text = "Type"
-		lbl_type.add_theme_font_size_override("font_size", 11)
-		lbl_type.custom_minimum_size.x = 50
-		type_row.add_child(lbl_type)
-		
-		var opt_type = OptionButton.new()
-		opt_type.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		opt_type.add_theme_font_size_override("font_size", 11)
-		
-		var types_to_show = [
-			FlowData.DataType.Bool,
-			FlowData.DataType.Int,
-			FlowData.DataType.Float,
-			FlowData.DataType.Vector,
-			FlowData.DataType.String,
-			FlowData.DataType.Resource
-		]
-		for t_idx in range(types_to_show.size()):
-			var t_val = types_to_show[t_idx]
-			var t_name = FlowData.DataType.keys()[t_val]
-			opt_type.add_item(t_name, t_val)
-			if param.data_type == t_val:
-				opt_type.selected = t_idx
-				
-		opt_type.item_selected.connect(func(id_index):
-			var new_type = opt_type.get_item_id(id_index)
-			param.data_type = new_type
-			param.emit_changed()
-			res.emit_changed()
-			property_edited.emit("out_params")
-			edit(res) # refresh to update value control type
-		)
-		type_row.add_child(opt_type)
-		param_vbox.add_child(type_row)
-		
-		list_box.add_child(param_panel)
+
+		list_box.add_child(_create_graph_parameter_panel(res, res.out_params, param, idx, "out_params", false))
 		
 	# Add Parameter Button
 	var btn_add = Button.new()

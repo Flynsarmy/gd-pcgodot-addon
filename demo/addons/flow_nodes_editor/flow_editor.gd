@@ -20,6 +20,8 @@ var inspector: FlowInspector
 var inspected_node : Node
 var make_inspector_visible : Callable
 var search_add_node_popup: SearchAddNodePopup
+var settings_button: Button
+var settings_popup: PopupPanel
 
 # This is the default graph-node instantiated, the script contains the logic
 var packed_node = preload("res://addons/flow_nodes_editor/node.tscn")
@@ -760,6 +762,8 @@ func _ready():
 	btn_analyze.pressed.connect(_on_button_analyze_pressed)
 	toolbar.add_child(btn_analyze)
 	toolbar.move_child(btn_analyze, 1)
+	_setup_toolbar_settings_panel(toolbar)
+	_arrange_toolbar_buttons(toolbar)
 	_apply_toolbar_translations()
 	
 	# Style the toolbar background #171a24
@@ -889,6 +893,90 @@ func _ready():
 	
 	update_status_bar()
 
+func _setup_toolbar_settings_panel(toolbar: HBoxContainer):
+	settings_popup = PopupPanel.new()
+	settings_popup.name = "SettingsPopup"
+	settings_popup.borderless = true
+	settings_popup.transient = true
+	settings_popup.exclusive = false
+	settings_popup.min_size = Vector2i(220, 0)
+	var popup_style := StyleBoxFlat.new()
+	popup_style.bg_color = Color("171a24")
+	popup_style.set_border_width_all(1)
+	popup_style.border_color = Color(1.0, 1.0, 1.0, 0.1)
+	popup_style.set_corner_radius_all(4)
+	popup_style.content_margin_left = 10
+	popup_style.content_margin_right = 10
+	popup_style.content_margin_top = 10
+	popup_style.content_margin_bottom = 10
+	settings_popup.add_theme_stylebox_override("panel", popup_style)
+	add_child(settings_popup)
+
+	var settings_vbox := VBoxContainer.new()
+	settings_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	settings_vbox.add_theme_constant_override("separation", 8)
+	settings_popup.add_child(settings_vbox)
+
+	for node_name in ["ButtonInputs", "AutoRegen", "CheckColorNodes"]:
+		var control = toolbar.get_node_or_null(node_name) as Control
+		if not control:
+			continue
+		toolbar.remove_child(control)
+		settings_vbox.add_child(control)
+		control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		if control is Button:
+			(control as Button).alignment = HORIZONTAL_ALIGNMENT_LEFT
+			_style_toolbar_button(control as Button)
+
+	var spacer := Control.new()
+	spacer.name = "ToolbarSpacer"
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	toolbar.add_child(spacer)
+
+	settings_button = Button.new()
+	settings_button.name = "ButtonSettings"
+	settings_button.text = FlowI18n.t("Settings")
+	settings_button.pressed.connect(_toggle_settings_popup)
+	toolbar.add_child(settings_button)
+
+func _arrange_toolbar_buttons(toolbar: HBoxContainer):
+	var order = [
+		"ButtonOpenGraph",
+		"ButtonSave",
+		"ButtonReload",
+		"ButtonAnalyze",
+		"ButtonRegenerate",
+		"ToolbarSpacer",
+		"ButtonSettings",
+	]
+	var index := 0
+	for node_name in order:
+		var control = toolbar.get_node_or_null(node_name)
+		if control:
+			toolbar.move_child(control, index)
+			index += 1
+
+func _toggle_settings_popup():
+	if not settings_popup or not settings_button:
+		return
+	if settings_popup.visible:
+		settings_popup.hide()
+		return
+	settings_popup.popup()
+	settings_popup.reset_size()
+	var popup_position := settings_button.get_screen_position() + Vector2(settings_button.size.x - settings_popup.size.x, settings_button.size.y + 6.0)
+	settings_popup.position = Vector2i(popup_position)
+
+func _get_toolbar_control(node_name: String) -> Control:
+	var toolbar = get_node_or_null("VBoxContainer/ScrollContainer/HBoxContainer")
+	if toolbar:
+		var toolbar_control = toolbar.get_node_or_null(node_name) as Control
+		if toolbar_control:
+			return toolbar_control
+	if settings_popup:
+		return settings_popup.find_child(node_name, true, false) as Control
+	return null
+
 func _notification(what: int):
 	if what == NOTIFICATION_TRANSLATION_CHANGED and is_inside_tree():
 		_apply_toolbar_translations()
@@ -898,10 +986,6 @@ func _notification(what: int):
 			update_status_bar()
 
 func _apply_toolbar_translations():
-	var toolbar = get_node_or_null("VBoxContainer/ScrollContainer/HBoxContainer")
-	if not toolbar:
-		return
-
 	var text_by_name = {
 		"ButtonOpenGraph": "Open Graph",
 		"ButtonAnalyze": "Analyze",
@@ -911,10 +995,11 @@ func _apply_toolbar_translations():
 		"AutoRegen": "Auto Regen",
 		"CheckColorNodes": "Color Nodes",
 		"ButtonRegenerate": "Regenerate",
+		"ButtonSettings": "Settings",
 		"LabelInfo": "Info",
 	}
 	for node_name in text_by_name:
-		var control = toolbar.get_node_or_null(node_name) as Control
+		var control = _get_toolbar_control(node_name)
 		if control is Button:
 			(control as Button).text = FlowI18n.t(String(text_by_name[node_name]))
 		elif control is Label:
@@ -925,7 +1010,7 @@ func _apply_toolbar_translations():
 		"ButtonAnalyze": "Inspect selected node raw data (A)",
 	}
 	for node_name in tooltip_by_name:
-		var control = toolbar.get_node_or_null(node_name) as Control
+		var control = _get_toolbar_control(node_name)
 		if control:
 			control.tooltip_text = FlowI18n.t(String(tooltip_by_name[node_name]))
 

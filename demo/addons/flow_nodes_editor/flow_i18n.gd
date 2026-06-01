@@ -43,6 +43,7 @@ const ZH_CN := {
 	"Sampler": "采样器",
 	"Save Resource": "保存资源",
 	"Search nodes...": "搜索节点...",
+	"Settings": "设置",
 	"Spatial": "空间",
 	"Splines": "样条",
 	"Utility": "工具",
