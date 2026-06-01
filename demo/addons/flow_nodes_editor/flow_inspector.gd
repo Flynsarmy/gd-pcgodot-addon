@@ -134,6 +134,9 @@ func _populate_flow_editor_settings(flow_editor):
 	settings_box.add_child(_create_row(FlowI18n.t("Color Nodes"), _create_editor_setting_checkbox(flow_editor.color_nodes, func(pressed):
 		flow_editor._on_color_nodes_toggled(pressed)
 	)))
+	settings_box.add_child(_create_row(FlowI18n.t("Native GraphEdit Grid"), _create_editor_setting_checkbox(flow_editor.use_native_graph_grid, func(pressed):
+		flow_editor._on_native_graph_grid_toggled(pressed)
+	)))
 	settings_box.add_child(_create_row(FlowI18n.t("Node Language"), _create_editor_setting_checkbox(FlowI18n.is_node_translation_enabled(), func(pressed):
 		flow_editor._on_node_translation_toggled(pressed)
 	)))

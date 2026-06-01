@@ -35,6 +35,7 @@ const ZH_CN := {
 	"Math": "数学",
 	"Meshes": "网格",
 	"Metadata": "元数据",
+	"Native GraphEdit Grid": "原生 GraphEdit 网格",
 	"No inputs defined": "未定义输入",
 	"No outputs defined": "未定义输出",
 	"Node Language": "节点语言",

@@ -10,6 +10,7 @@ var regen_pending := false
 var save_pending := false
 var auto_regen := true
 var dump_performance := false
+var use_native_graph_grid := false
 
 @onready var gedit : GraphEdit = %GraphEdit
 @onready var data_inspector : Control
@@ -22,10 +23,12 @@ var make_inspector_visible : Callable
 var search_add_node_popup: SearchAddNodePopup
 var expand_graph_button: Button
 var settings_button: Button
+var custom_graph_grid
 
 # This is the default graph-node instantiated, the script contains the logic
 var packed_node = preload("res://addons/flow_nodes_editor/node.tscn")
 const directory_path := FlowNodeRegistry.DEFAULT_NODE_DIRECTORY
+const EDITOR_SETTING_NATIVE_GRAPH_GRID := "addons/flow_nodes_editor/use_native_graph_grid"
 
 # New nodes generation using the editor
 var local_drop_position : Vector2 = Vector2(0,0)
@@ -700,6 +703,8 @@ func _ready():
 	
 	if not Engine.is_editor_hint():
 		return
+
+	_load_editor_settings()
 		
 	ui_scale = 1.0
 	var dpi = DisplayServer.screen_get_dpi()
@@ -810,12 +815,12 @@ func _ready():
 			else:
 				_style_toolbar_button(child)
 				
-	# Custom Dot Grid Background on GraphEdit
-	gedit.show_grid = false
-	var bg_grid = preload("res://addons/flow_nodes_editor/custom_grid.gd").new()
-	bg_grid.gedit = gedit
-	gedit.add_child(bg_grid)
-	gedit.move_child(bg_grid, 0)
+	# Custom dot grid background on GraphEdit.
+	custom_graph_grid = preload("res://addons/flow_nodes_editor/custom_grid.gd").new()
+	custom_graph_grid.gedit = gedit
+	gedit.add_child(custom_graph_grid)
+	gedit.move_child(custom_graph_grid, 0)
+	_apply_graph_grid_mode()
 	_setup_inline_analyze_panel()
 	
 	# Custom Sidebar Inspector
@@ -947,6 +952,36 @@ func _arrange_toolbar_buttons(toolbar: HBoxContainer):
 func _show_editor_settings_panel():
 	inspector.edit_editor_settings(self)
 	inspected_node = null
+
+func _load_editor_settings():
+	var editor_settings := EditorInterface.get_editor_settings()
+	if not editor_settings:
+		return
+	if not editor_settings.has_setting(EDITOR_SETTING_NATIVE_GRAPH_GRID):
+		editor_settings.set_setting(EDITOR_SETTING_NATIVE_GRAPH_GRID, use_native_graph_grid)
+	editor_settings.add_property_info({
+		"name": EDITOR_SETTING_NATIVE_GRAPH_GRID,
+		"type": TYPE_BOOL,
+	})
+	use_native_graph_grid = bool(editor_settings.get_setting(EDITOR_SETTING_NATIVE_GRAPH_GRID))
+
+func _save_editor_settings():
+	var editor_settings := EditorInterface.get_editor_settings()
+	if not editor_settings:
+		return
+	editor_settings.set_setting(EDITOR_SETTING_NATIVE_GRAPH_GRID, use_native_graph_grid)
+
+func _apply_graph_grid_mode():
+	if not gedit:
+		return
+	gedit.show_grid = use_native_graph_grid
+	if custom_graph_grid and is_instance_valid(custom_graph_grid):
+		custom_graph_grid.visible = not use_native_graph_grid
+
+func _on_native_graph_grid_toggled(toggled_on: bool):
+	use_native_graph_grid = toggled_on
+	_save_editor_settings()
+	_apply_graph_grid_mode()
 
 func _float_graph_panel():
 	var current_window := get_window()
