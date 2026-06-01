@@ -109,6 +109,41 @@ func edit(target_node: Object):
 		current_settings = target_node
 		_populate_generic_resource_properties(target_node)
 
+func edit_editor_settings(flow_editor):
+	current_node = null
+	current_settings = flow_editor
+
+	for child in content_vbox.get_children():
+		child.queue_free()
+		content_vbox.remove_child(child)
+
+	scroll_container.visible = true
+	placeholder_label.visible = false
+	_populate_flow_editor_settings(flow_editor)
+
+func _populate_flow_editor_settings(flow_editor):
+	_add_header(FlowI18n.t("Settings"), FlowI18n.t("Flow Editor"))
+
+	var settings_box = VBoxContainer.new()
+	settings_box.add_theme_constant_override("separation", 10)
+	content_vbox.add_child(settings_box)
+
+	settings_box.add_child(_create_row(FlowI18n.t("Auto Regen"), _create_editor_setting_checkbox(flow_editor.auto_regen, func(pressed):
+		flow_editor._on_auto_regen_toggled(pressed)
+	)))
+	settings_box.add_child(_create_row(FlowI18n.t("Color Nodes"), _create_editor_setting_checkbox(flow_editor.color_nodes, func(pressed):
+		flow_editor._on_color_nodes_toggled(pressed)
+	)))
+	settings_box.add_child(_create_row(FlowI18n.t("Node Language"), _create_editor_setting_checkbox(FlowI18n.is_node_translation_enabled(), func(pressed):
+		flow_editor._on_node_translation_toggled(pressed)
+	)))
+
+func _create_editor_setting_checkbox(is_pressed: bool, changed: Callable) -> CheckBox:
+	var checkbox = CheckBox.new()
+	checkbox.button_pressed = is_pressed
+	checkbox.toggled.connect(changed)
+	return checkbox
+
 func _populate_frame_properties(frame: GraphFrame):
 	# Header
 	_add_header(frame.title, frame.name)

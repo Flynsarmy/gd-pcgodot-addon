@@ -20,9 +20,7 @@ var inspector: FlowInspector
 var inspected_node : Node
 var make_inspector_visible : Callable
 var search_add_node_popup: SearchAddNodePopup
-var node_translation_checkbox: CheckBox
 var settings_button: Button
-var settings_popup: PopupPanel
 
 # This is the default graph-node instantiated, the script contains the logic
 var packed_node = preload("res://addons/flow_nodes_editor/node.tscn")
@@ -895,56 +893,25 @@ func _ready():
 	update_status_bar()
 
 func _setup_toolbar_settings_panel(toolbar: HBoxContainer):
-	settings_popup = PopupPanel.new()
-	settings_popup.name = "SettingsPopup"
-	settings_popup.borderless = true
-	settings_popup.transient = true
-	settings_popup.exclusive = false
-	settings_popup.min_size = Vector2i(220, 0)
-	var popup_style := StyleBoxFlat.new()
-	popup_style.bg_color = Color("171a24")
-	popup_style.set_border_width_all(1)
-	popup_style.border_color = Color(1.0, 1.0, 1.0, 0.1)
-	popup_style.set_corner_radius_all(4)
-	popup_style.content_margin_left = 10
-	popup_style.content_margin_right = 10
-	popup_style.content_margin_top = 10
-	popup_style.content_margin_bottom = 10
-	settings_popup.add_theme_stylebox_override("panel", popup_style)
-	add_child(settings_popup)
-
-	var settings_vbox := VBoxContainer.new()
-	settings_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	settings_vbox.add_theme_constant_override("separation", 8)
-	settings_popup.add_child(settings_vbox)
-
-	for node_name in ["ButtonInputs", "AutoRegen", "CheckColorNodes"]:
+	for node_name in ["AutoRegen", "CheckColorNodes"]:
 		var control = toolbar.get_node_or_null(node_name) as Control
 		if not control:
 			continue
-		toolbar.remove_child(control)
-		settings_vbox.add_child(control)
-		control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		if control is Button:
-			(control as Button).alignment = HORIZONTAL_ALIGNMENT_LEFT
-			_style_toolbar_button(control as Button)
+		control.visible = false
 
 	var spacer := Control.new()
 	spacer.name = "ToolbarSpacer"
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	toolbar.add_child(spacer)
 
-	node_translation_checkbox = CheckBox.new()
-	node_translation_checkbox.name = "CheckTranslateNodes"
-	node_translation_checkbox.button_pressed = FlowI18n.is_node_translation_enabled()
-	node_translation_checkbox.tooltip_text = FlowI18n.t("Translate Nodes")
-	node_translation_checkbox.toggled.connect(_on_node_translation_toggled)
-	toolbar.add_child(node_translation_checkbox)
+	var inputs_button = toolbar.get_node_or_null("ButtonInputs") as Button
+	if inputs_button:
+		inputs_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 
 	settings_button = Button.new()
 	settings_button.name = "ButtonSettings"
 	settings_button.text = FlowI18n.t("Settings")
-	settings_button.pressed.connect(_toggle_settings_popup)
+	settings_button.pressed.connect(_show_editor_settings_panel)
 	toolbar.add_child(settings_button)
 
 func _arrange_toolbar_buttons(toolbar: HBoxContainer):
@@ -955,7 +922,7 @@ func _arrange_toolbar_buttons(toolbar: HBoxContainer):
 		"ButtonAnalyze",
 		"ButtonRegenerate",
 		"ToolbarSpacer",
-		"CheckTranslateNodes",
+		"ButtonInputs",
 		"ButtonSettings",
 	]
 	var index := 0
@@ -965,17 +932,9 @@ func _arrange_toolbar_buttons(toolbar: HBoxContainer):
 			toolbar.move_child(control, index)
 			index += 1
 
-func _toggle_settings_popup():
-	if not settings_popup or not settings_button:
-		return
-	_show_graph_inputs_panel()
-	if settings_popup.visible:
-		settings_popup.hide()
-		return
-	settings_popup.popup()
-	settings_popup.reset_size()
-	var popup_position := settings_button.get_screen_position() + Vector2(settings_button.size.x - settings_popup.size.x, settings_button.size.y + 6.0)
-	settings_popup.position = Vector2i(popup_position)
+func _show_editor_settings_panel():
+	inspector.edit_editor_settings(self)
+	inspected_node = null
 
 func _get_toolbar_control(node_name: String) -> Control:
 	var toolbar = get_node_or_null("VBoxContainer/ScrollContainer/HBoxContainer")
@@ -983,8 +942,6 @@ func _get_toolbar_control(node_name: String) -> Control:
 		var toolbar_control = toolbar.get_node_or_null(node_name) as Control
 		if toolbar_control:
 			return toolbar_control
-	if settings_popup:
-		return settings_popup.find_child(node_name, true, false) as Control
 	return null
 
 func _notification(what: int):
@@ -1018,7 +975,6 @@ func _apply_toolbar_translations():
 	var tooltip_by_name = {
 		"ButtonOpenGraph": "Open a FlowGraph resource",
 		"ButtonAnalyze": "Inspect selected node raw data (A)",
-		"CheckTranslateNodes": "Translate Nodes",
 	}
 	for node_name in tooltip_by_name:
 		var control = _get_toolbar_control(node_name)
@@ -2705,6 +2661,8 @@ func _on_button_regenerate_pressed() -> void:
 
 func _on_auto_regen_toggled(toggled_on: bool) -> void:
 	auto_regen = toggled_on
+	if has_node("%AutoRegen") and %AutoRegen.button_pressed != toggled_on:
+		%AutoRegen.set_pressed_no_signal(toggled_on)
 
 func _on_button_inputs_pressed():
 	_show_graph_inputs_panel()
@@ -2926,6 +2884,8 @@ func _on_graph_edit_end_node_move():
 
 func _on_color_nodes_toggled(toggled_on: bool) -> void:
 	color_nodes = toggled_on
+	if has_node("%CheckColorNodes") and %CheckColorNodes.button_pressed != toggled_on:
+		%CheckColorNodes.set_pressed_no_signal(toggled_on)
 	for node in getAllNodes():
 		node.refreshFromSettings()
 
