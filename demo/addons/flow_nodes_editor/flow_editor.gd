@@ -7,7 +7,11 @@ var current_resource: FlowGraphResource
 var resource_owner : FlowGraphNode3D
 var ctx := FlowData.EvaluationContext.new()
 var regen_pending := false
+var regen_running := false
+var regen_requested_while_running := false
+var regen_run_id := 0
 var save_pending := false
+var save_pending_delay := 0.0
 var auto_regen := true
 var dump_performance := false
 var use_native_graph_grid := false
@@ -55,6 +59,7 @@ var active_nodes = []
 
 var undo_redo: EditorUndoRedoManager
 var drag_start_snapshot : Dictionary = {}
+var suppress_next_editor_scene_changed := false
 var color_nodes : bool = true
 
 var ui_scale = 1.0
@@ -67,11 +72,17 @@ var popup_on_over_input = null
 const IDM_PROMOTE_TO_PARAMETER : int = 100
 const IDM_COLLAPSE_TO_SUBGRAPH : int = 200
 const RIGHT_DRAG_PAN_THRESHOLD := 4.0
+const SAVE_DEBOUNCE_SECONDS := 0.35
+const AUTO_REGEN_FRAME_BUDGET_USEC := 5000
 var right_drag_pan_active := false
 var right_drag_pan_moved := false
 var right_drag_pan_start_position := Vector2.ZERO
 var right_drag_pan_start_scroll := Vector2.ZERO
 var suppress_next_popup_request := false
+var status_counts_dirty := true
+var status_nodes_count := 0
+var status_wires_count := 0
+var data_inspector_refresh_pending := false
 
 var tab_bar: TabBar
 var open_tabs: Array[Dictionary] = []
@@ -211,6 +222,9 @@ func _on_tab_close_pressed(index: int):
 					active_tab_index -= 1
 
 func _clear_ui_nodes():
+	_cancel_regen_run()
+	_clear_active_nodes()
+	_mark_status_counts_dirty()
 	var children = []
 	for child in gedit.get_children():
 		if child is GraphNode or child is GraphFrame:
@@ -408,6 +422,7 @@ func _switch_to_tab_with_loading(index: int, new_owner = null) -> void:
 	markAllNodesAsDirty()
 	queueRegen()
 	populatePopupInputsMenu()
+	populatePopupOutputsMenu()
 
 	tab_bar.current_tab = index
 	_update_tab_titles()
@@ -634,6 +649,7 @@ func _on_filesystem_changed():
 func saveResource():
 	FlowNodeIO.saveToResource( self )
 	save_pending = false
+	save_pending_delay = 0.0
 	
 func _process(delta: float) -> void:
 	if node_registry_version != FlowNodeRegistry.get_version():
@@ -643,20 +659,28 @@ func _process(delta: float) -> void:
 		return
 		
 	if save_pending:
-		saveResource()
+		save_pending_delay -= delta
+		if save_pending_delay <= 0.0:
+			saveResource()
 		
 	# This is also trigered to true by plugin.gd:_on_history_changed
-	if regen_pending:
+	if regen_pending and not regen_running:
 		#print( "_process.regen_pending: %s" % [ regen_pending ])
-		evalGraph()
+		regen_pending = false
+		evalGraphAsync()
 
 	# Update active connections
-	elif active_intensity > 0.0:
+	if active_intensity > 0.0:
 		active_intensity -= 0.016 * 4
 		if active_intensity < 0:
 			active_intensity = 0.0
+		var live_active_nodes := []
 		for node in active_nodes:
+			if not is_instance_valid(node):
+				continue
 			node.setActivity( active_intensity )
+			live_active_nodes.append(node)
+		active_nodes = live_active_nodes
 			
 		if active_intensity == 0:
 			active_nodes.clear()
@@ -1485,7 +1509,9 @@ func _hotkey_toggle_disabled():
 ## Finds the nearest connection to a screen position in the GraphEdit.
 ## Returns the connection dict or null if nothing is within threshold.
 func _find_nearest_connection(screen_pos: Vector2):
-	var threshold := 20.0 * gedit.zoom
+	var zoom := maxf(gedit.zoom, 0.001)
+	var threshold := 20.0 / zoom
+	var graph_pos = (screen_pos + gedit.scroll_offset) / zoom
 	var best_conn = null
 	var best_dist := threshold
 	
@@ -1498,9 +1524,6 @@ func _find_nearest_connection(screen_pos: Vector2):
 		# Get port positions in GraphEdit local coords
 		var from_pos = from_node.position_offset + from_node.get_output_port_position(conn.from_port)
 		var to_pos = to_node.position_offset + to_node.get_input_port_position(conn.to_port)
-		
-		# Convert screen pos to graph coords
-		var graph_pos = (screen_pos + gedit.scroll_offset) / gedit.zoom
 		
 		# Sample points along the bezier curve and find min distance
 		var steps := 12
@@ -1689,17 +1712,25 @@ func _set_analyze_panel_visible(visible: bool):
 	else:
 		current_analyzed_node = null
 
-func update_status_bar(eval_msg: String = ""):
-	var nodes_count = 0
+func _mark_status_counts_dirty() -> void:
+	status_counts_dirty = true
+
+func _refresh_status_counts() -> void:
+	if not status_counts_dirty:
+		return
+	status_nodes_count = 0
 	for child in gedit.get_children():
 		if child is GraphNode:
-			nodes_count += 1
-	var connections = gedit.get_connection_list()
-	var wires_count = connections.size()
+			status_nodes_count += 1
+	status_wires_count = gedit.get_connection_list().size()
+	status_counts_dirty = false
+
+func update_status_bar(eval_msg: String = ""):
+	_refresh_status_counts()
 	
 	var text_parts = []
-	text_parts.append(FlowI18n.count(nodes_count, "nodes"))
-	text_parts.append(FlowI18n.count(wires_count, "connections"))
+	text_parts.append(FlowI18n.count(status_nodes_count, "nodes"))
+	text_parts.append(FlowI18n.count(status_wires_count, "connections"))
 	if eval_msg != "":
 		text_parts.append(eval_msg)
 	elif inspected_node and inspected_node is FlowNodeBase and inspected_node.has_method("get_data_summary"):
@@ -1709,7 +1740,9 @@ func update_status_bar(eval_msg: String = ""):
 	elif current_resource:
 		text_parts.append(FlowI18n.t("Ready"))
 		
-	info.text = " · ".join(text_parts)
+	var status_text := " · ".join(text_parts)
+	if info.text != status_text:
+		info.text = status_text
 
 func _on_in_params_changed():
 	if current_resource:
@@ -1750,6 +1783,8 @@ func deleteFrames( frames : Array[GraphFrame] ):
 	for node in frames:
 		gedit.remove_child( node )
 		node.queue_free()
+	if not frames.is_empty():
+		_mark_status_counts_dirty()
 	
 # ------------------------------------------------
 func getSelectedNodes() -> Array[GraphNode]:
@@ -1764,6 +1799,7 @@ func deleteNodes( nodes : Array[GraphNode] ):
 	var has_input_nodes := false
 	var has_output_nodes := false
 	for node in nodes:
+		active_nodes.erase(node)
 		if node is FlowNodeBase and (node.node_template == "input" or node.node_template.begins_with("input_")):
 			has_input_nodes = true
 		elif node is FlowNodeBase and (node.node_template == "output" or node.node_template.begins_with("output_")):
@@ -1775,6 +1811,8 @@ func deleteNodes( nodes : Array[GraphNode] ):
 		gedit_nodes_by_name.erase( node.name )
 		gedit.remove_child( node )
 		node.queue_free()
+	if not nodes.is_empty():
+		_mark_status_counts_dirty()
 	if has_input_nodes:
 		syncGraphParameters()
 	if has_output_nodes:
@@ -1799,10 +1837,35 @@ func deleteSelectedNodes():
 	
 func queueSave():
 	save_pending = true
+	save_pending_delay = SAVE_DEBOUNCE_SECONDS
 	
 func queueRegen():
 	#print( "queueRegen -> %s" % [ auto_regen ])
 	regen_pending = auto_regen
+	if regen_running and auto_regen:
+		regen_requested_while_running = true
+
+func _cancel_regen_run() -> void:
+	regen_run_id += 1
+	regen_pending = false
+	regen_running = false
+	regen_requested_while_running = false
+
+func _start_regen_run() -> int:
+	regen_run_id += 1
+	regen_running = true
+	return regen_run_id
+
+func _is_current_regen_run(run_id: int) -> bool:
+	return regen_running and run_id == regen_run_id
+
+func _complete_regen_run(run_id: int) -> void:
+	if not _is_current_regen_run(run_id):
+		return
+	regen_running = false
+	if regen_requested_while_running:
+		regen_requested_while_running = false
+		regen_pending = auto_regen
 	
 func getRectOfNodes( nodes : Array[GraphNode] ):
 	var r : Rect2
@@ -1886,6 +1949,7 @@ func addNodeFromTemplate( node_template, node_name : String, settings = null, in
 	
 	gedit.add_child(node)
 	gedit_nodes_by_name[ node.name ] = node
+	_mark_status_counts_dirty()
 	return node
 
 func _has_input_node_named(uname: String) -> bool:
@@ -1963,8 +2027,6 @@ func _handle_right_mouse_pan(event: InputEvent) -> bool:
 	var evt_mouse := event as InputEventMouseButton
 	if evt_mouse and evt_mouse.button_index == MOUSE_BUTTON_RIGHT:
 		if evt_mouse.pressed:
-			if _find_nearest_connection(evt_mouse.position):
-				return false
 			right_drag_pan_active = true
 			right_drag_pan_moved = false
 			right_drag_pan_start_position = evt_mouse.position
@@ -1980,7 +2042,12 @@ func _handle_right_mouse_pan(event: InputEvent) -> bool:
 			if not was_drag:
 				suppress_next_popup_request = true
 				call_deferred("_clear_suppressed_popup_request")
-				_open_graph_context_menu(evt_mouse.position)
+				var conn = _find_nearest_connection(evt_mouse.position)
+				if conn:
+					_on_graph_edit_disconnection_request(conn.from_node, conn.from_port, conn.to_node, conn.to_port)
+					update_status_bar("Disconnected %s → %s" % [conn.from_node, conn.to_node])
+				else:
+					_open_graph_context_menu(evt_mouse.position)
 			return true
 		return false
 
@@ -1989,10 +2056,7 @@ func _handle_right_mouse_pan(event: InputEvent) -> bool:
 		var delta := evt_motion.position - right_drag_pan_start_position
 		if right_drag_pan_moved or delta.length() >= RIGHT_DRAG_PAN_THRESHOLD:
 			right_drag_pan_moved = true
-			var zoom := gedit.zoom
-			if is_zero_approx(zoom):
-				zoom = 1.0
-			gedit.scroll_offset = right_drag_pan_start_scroll - delta / zoom
+			gedit.scroll_offset = right_drag_pan_start_scroll - delta
 		gedit.accept_event()
 		return true
 
@@ -2178,6 +2242,7 @@ func addComment():
 	frame.tint_color = Color.DARK_SLATE_BLUE
 	frame.tint_color_enabled = true
 	gedit.add_child(frame)
+	_mark_status_counts_dirty()
 	
 	for node in nodes:
 		gedit.attach_graph_element_to_frame( node.name, frame.name )
@@ -2683,6 +2748,7 @@ func disconnect_nodes(from_node: StringName, from_port: int, to_node: StringName
 	#print( "disconnect_nodes From:%s:%d To:%s:%d" % [ from_node, from_port, to_node, to_port ])
 	gedit.disconnect_node(from_node, from_port, to_node, to_port)
 	remove_input_source_target_connection( from_node, from_port, to_node, to_port )
+	_mark_status_counts_dirty()
 
 	var dst_node : FlowNodeBase = gedit_nodes_by_name.get( to_node )
 	if dst_node != null:
@@ -2691,6 +2757,7 @@ func disconnect_nodes(from_node: StringName, from_port: int, to_node: StringName
 func connect_nodes(from_node: StringName, from_port: int, to_node: StringName, to_port: int) -> void:
 	#print( "connect_nodes %s:%d -> %s:%d" % [ from_node, from_port, to_node, to_port ] )
 	gedit.connect_node(from_node, from_port, to_node, to_port)
+	_mark_status_counts_dirty()
 	var key = [to_node, to_port]
 	if not input_sources.has(key):
 		input_sources.set( key, [])
@@ -2896,7 +2963,7 @@ func expandDirtyFlagToDependants( node : FlowNodeBase ):
 				dst_node.dirty = true
 				expandDirtyFlagToDependants( dst_node )
 
-func evalGraph():
+func _begin_eval_graph() -> Dictionary:
 	ctx.eval_id += 1
 	
 	var time_start = Time.get_ticks_usec()
@@ -2919,51 +2986,105 @@ func evalGraph():
 	#for node in dirty_nodes:
 		#print( "Dirty: %s" % node.name )
 	
-	var performance = []
 	#print( "getEvalOrder..." )
-	var nodes_to_eval = getEvalOrder( )
-		
-	for node in nodes_to_eval:
-		#print( "  Eval: %s (%d) Dirty:%s" % [ node.name, node.eval_id, node.dirty ] )
-			
-		# The node has already been evaluated or it's not dirty. No need to reevaluate it
-		if node.eval_id == ctx.eval_id or not node.dirty:
-			continue
-		
-		var time_node_start = Time.get_ticks_usec()
-		active_nodes.append( node )
-		
-		node.preExecute( ctx )
-		
-		#print( "Evaluating %s" % node.name )
-		if node.settings.disabled:
-			node.executedDisabled( ctx )
-		else:
-			node.run( ctx )
-		
-		if node.settings.inspect_enabled:
-			data_inspector.refresh()
-		node.setupDrawDebug()
-		node.dirty = false
-		var time_node_ends = Time.get_ticks_usec()
-		var exec_usec = time_node_ends - time_node_start
-		
-		# Always show execution time on the node
-		node.setExecTime(exec_usec)
-		
-		if dump_performance:
-			performance.append( { "name": node.name, "time": exec_usec })
+	return {
+		"time_start": time_start,
+		"nodes_to_eval": getEvalOrder(),
+		"performance": [],
+	}
 
+func _evaluate_graph_node(node: FlowNodeBase, performance: Array) -> void:
+	#print( "  Eval: %s (%d) Dirty:%s" % [ node.name, node.eval_id, node.dirty ] )
+
+	# The node has already been evaluated or it's not dirty. No need to reevaluate it
+	if node.eval_id == ctx.eval_id or not node.dirty:
+		return
+
+	var time_node_start = Time.get_ticks_usec()
+	active_nodes.append( node )
+
+	node.preExecute( ctx )
+
+	#print( "Evaluating %s" % node.name )
+	if node.settings.disabled:
+		node.executedDisabled( ctx )
+	else:
+		node.run( ctx )
+
+	if node.settings.inspect_enabled:
+		_queue_data_inspector_refresh(node)
+	node.setupDrawDebug()
+	node.dirty = false
+	var time_node_ends = Time.get_ticks_usec()
+	var exec_usec = time_node_ends - time_node_start
+
+	# Always show execution time on the node
+	node.setExecTime(exec_usec)
+
+	if dump_performance:
+		performance.append( { "name": node.name, "time": exec_usec })
+
+func _queue_data_inspector_refresh(node: FlowNodeBase) -> void:
+	if data_inspector and analyze_panel and analyze_panel.visible and node == current_analyzed_node:
+		data_inspector_refresh_pending = true
+
+func _flush_data_inspector_refresh() -> void:
+	if data_inspector_refresh_pending and data_inspector and analyze_panel and analyze_panel.visible:
+		data_inspector.refresh()
+	data_inspector_refresh_pending = false
+
+func _finish_eval_graph(eval_state: Dictionary) -> void:
 	regen_pending = false
 	#print( "regen_pending is now false")
+	_flush_data_inspector_refresh()
 	
-	var elapsed_usec = Time.get_ticks_usec() - time_start
+	var elapsed_usec = Time.get_ticks_usec() - eval_state.time_start
 	update_status_bar("%d evals in %.3f ms" % [ ctx.eval_id, elapsed_usec / 1000.0 ])
 	if dump_performance:
-		for entry in performance:
+		for entry in eval_state.performance:
 			var formatted := "%8.1s" % String.num(entry.time, 1)
 			print( "%s usecs %s" % [ formatted, entry.name ] )
 		dump_performance = false
+
+func evalGraph():
+	if regen_running:
+		regen_requested_while_running = true
+		return
+	var run_id := _start_regen_run()
+	var eval_state := _begin_eval_graph()
+	for node in eval_state.nodes_to_eval:
+		if not _is_current_regen_run(run_id):
+			return
+		if not is_instance_valid(node):
+			continue
+		_evaluate_graph_node(node, eval_state.performance)
+	if not _is_current_regen_run(run_id):
+		return
+	_finish_eval_graph(eval_state)
+	_complete_regen_run(run_id)
+
+func evalGraphAsync() -> void:
+	if regen_running:
+		regen_requested_while_running = true
+		return
+	var run_id := _start_regen_run()
+	var eval_state := _begin_eval_graph()
+	var frame_start := Time.get_ticks_usec()
+	for node in eval_state.nodes_to_eval:
+		if not _is_current_regen_run(run_id):
+			return
+		if not is_instance_valid(node):
+			continue
+		_evaluate_graph_node(node, eval_state.performance)
+		if Time.get_ticks_usec() - frame_start >= AUTO_REGEN_FRAME_BUDGET_USEC:
+			await get_tree().process_frame
+			if not _is_current_regen_run(run_id):
+				return
+			frame_start = Time.get_ticks_usec()
+	if not _is_current_regen_run(run_id):
+		return
+	_finish_eval_graph(eval_state)
+	_complete_regen_run(run_id)
 
 func _on_button_reload_pressed() -> void:
 	await _reload_current_graph_with_loading()
@@ -3035,8 +3156,9 @@ func _on_button_regenerate_pressed() -> void:
 	#for conn in gedit.connections:
 		#print( conn )
 	dump_performance = true
+	_cancel_regen_run()
 	markAllNodesAsDirty()
-	queueRegen()
+	evalGraph()
 	#for n : FlowNodeBase in getSelectedNodes():
 		#print( "Node: %s  Ins:%d  Outs:%d" % [ n.name, n.num_in_ports, n.num_out_ports ])
 		#for idx in range( n.num_in_ports ):
@@ -3071,6 +3193,9 @@ func _on_graph_edit_duplicate_nodes_request():
 	FlowNodeIO.duplicateSelecteddNodes( self )
 	
 func onEditorSceneChanged():
+	if suppress_next_editor_scene_changed:
+		suppress_next_editor_scene_changed = false
+		return
 	# When a node in the scene changes, just mark dirty all nodes
 	# which can potentially become dirty
 	# This also triggers as dirty all scan_* nodes when we change
@@ -3078,6 +3203,13 @@ func onEditorSceneChanged():
 	for node in getAllNodes():
 		node.dirty = true
 	queueRegen()
+
+func _suppress_next_editor_scene_changed() -> void:
+	suppress_next_editor_scene_changed = true
+	call_deferred("_clear_editor_scene_changed_suppression")
+
+func _clear_editor_scene_changed_suppression() -> void:
+	suppress_next_editor_scene_changed = false
 
 func create_node_network(net_description: Dictionary) -> Dictionary:
 	var created_nodes := {}
@@ -3150,7 +3282,17 @@ func get_graph_snapshot() -> Dictionary:
 		
 	return state
 
+func get_graph_element_positions() -> Dictionary:
+	var positions := {}
+	for child in gedit.get_children():
+		if child is GraphNode or child is GraphFrame:
+			positions[child.name] = [child.position_offset.x, child.position_offset.y]
+	return positions
+
 func clear_graph():
+	_cancel_regen_run()
+	_clear_active_nodes()
+	_mark_status_counts_dirty()
 	gedit.clear_connections()
 	input_sources.clear()
 	for child in gedit.get_children():
@@ -3163,6 +3305,10 @@ func clear_graph():
 		data_inspector.setNode(null)
 	_set_analyze_panel_visible(false)
 	current_analyzed_node = null
+
+func _clear_active_nodes() -> void:
+	active_intensity = 0.0
+	active_nodes.clear()
 
 func load_graph_state(state: Dictionary):
 	clear_graph()
@@ -3226,23 +3372,22 @@ func record_undo_action(action_name: String, before_state: Dictionary):
 		queueSave()
 
 func set_nodes_positions(positions: Dictionary):
-	print("set_nodes_positions called with: ", positions)
+	_suppress_next_editor_scene_changed()
 	for name in positions:
 		var node = gedit.get_node_or_null(NodePath(name))
 		if node:
 			var pos_arr = positions[name]
 			node.position_offset = Vector2(pos_arr[0], pos_arr[1])
 	queueSave()
-	queueRegen()
 
 func _on_graph_edit_begin_node_move():
-	drag_start_snapshot = get_graph_snapshot()
+	drag_start_snapshot = get_graph_element_positions()
 
 func _on_graph_edit_end_node_move():
 	var moved_nodes_before = {}
 	var moved_nodes_after = {}
-	if not drag_start_snapshot.is_empty() and drag_start_snapshot.has("absolute_positions"):
-		var start_positions = drag_start_snapshot.absolute_positions
+	if not drag_start_snapshot.is_empty():
+		var start_positions = drag_start_snapshot
 		for child in gedit.get_children():
 			if child is GraphNode or child is GraphFrame:
 				var start_pos_arr = start_positions.get(child.name, null)
@@ -3261,6 +3406,7 @@ func _on_graph_edit_end_node_move():
 			ur.create_action("Move Nodes", 0, context)
 			ur.add_do_method(self, "set_nodes_positions", moved_nodes_after)
 			ur.add_undo_method(self, "set_nodes_positions", moved_nodes_before)
+			_suppress_next_editor_scene_changed()
 			ur.commit_action(false) # already executed
 			queueSave()
 			
