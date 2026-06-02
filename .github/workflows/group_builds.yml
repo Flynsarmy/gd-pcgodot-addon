@@ -1,0 +1,32 @@
+name: Group Builds
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Download Build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path:  ${{ github.workspace }}/demo/bin/
+          merge-multiple: true
+
+      - name: Delete Build artifacts
+        uses: geekyeggo/delete-artifact@v6
+        with:
+          name: libutilityai-*
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: noodle_nodes_demo_project
+          path: ${{ github.workspace }}/demo/
+          if-no-files-found: error
