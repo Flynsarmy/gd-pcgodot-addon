@@ -89,6 +89,8 @@ var tab_bar: TabBar
 var open_tabs: Array[Dictionary] = []
 var active_tab_index: int = -1
 var open_file_dialog: EditorFileDialog
+var save_file_dialog: EditorFileDialog
+var unsaved_close_dialog: AcceptDialog
 var analyze_panel: Control
 var current_analyzed_node: FlowNodeBase
 var breadcrumb_bar: HBoxContainer
@@ -102,6 +104,33 @@ var graph_loading_message := ""
 var graph_loading_target_value := 0.0
 var graph_loading_display_value := 0.0
 var graph_loading_sweep_offset := 0.0
+
+func _active_tab_is_valid() -> bool:
+	return active_tab_index >= 0 and active_tab_index < open_tabs.size()
+
+func _is_tab_dirty(index: int) -> bool:
+	if index < 0 or index >= open_tabs.size():
+		return false
+	return bool(open_tabs[index].get("dirty", false))
+
+func _set_tab_dirty(index: int, dirty: bool) -> void:
+	if index < 0 or index >= open_tabs.size():
+		return
+	open_tabs[index]["dirty"] = dirty
+	_update_tab_titles()
+
+func _set_current_graph_dirty(dirty: bool) -> void:
+	if _active_tab_is_valid():
+		_set_tab_dirty(active_tab_index, dirty)
+
+func ensureCurrentResource() -> FlowGraphResource:
+	if current_resource:
+		return current_resource
+
+	var new_resource := FlowGraphResource.new()
+	new_resource.resource_name = "Untitled"
+	setResourceToEdit(new_resource, null)
+	return current_resource
 
 func setResourceToEdit( new_resource : FlowGraphResource, new_resource_owner : FlowGraphNode3D ):
 	if new_resource == null:
@@ -140,7 +169,8 @@ func setResourceToEdit( new_resource : FlowGraphResource, new_resource_owner : F
 			
 		open_tabs.append({
 			"resource": new_resource,
-			"owner": new_resource_owner
+			"owner": new_resource_owner,
+			"dirty": false
 		})
 		tab_bar.add_tab(tab_title)
 		_switch_to_tab(open_tabs.size() - 1, new_resource_owner)
@@ -198,6 +228,10 @@ func _on_tab_changed(index: int):
 
 func _on_tab_close_pressed(index: int):
 	if index >= 0 and index < open_tabs.size():
+		if _is_tab_dirty(index):
+			_show_unsaved_close_warning(index)
+			return
+
 		var closed_active = (index == active_tab_index)
 		if closed_active and current_resource:
 			saveResource()
@@ -214,6 +248,7 @@ func _on_tab_close_pressed(index: int):
 			resource_owner = null
 			active_tab_index = -1
 			_clear_ui_nodes()
+			ensureCurrentResource()
 		else:
 			if closed_active:
 				var new_idx = clamp(index - 1, 0, open_tabs.size() - 1)
@@ -247,11 +282,15 @@ func _clear_ui_nodes():
 func _update_tab_titles():
 	for i in range(open_tabs.size()):
 		var tab_res = open_tabs[i].resource
-		var tab_title = "New Graph"
+		var tab_title = FlowI18n.t("Untitled")
 		if is_instance_valid(tab_res) and tab_res.resource_path != "":
 			tab_title = tab_res.resource_path.get_file()
 		elif open_tabs[i].owner:
 			tab_title = open_tabs[i].owner.name
+		elif is_instance_valid(tab_res) and tab_res.resource_path == "":
+			tab_title = FlowI18n.t("Untitled / Unsaved")
+		if _is_tab_dirty(i):
+			tab_title = "* " + tab_title
 		tab_bar.set_tab_title(i, tab_title)
 	_update_breadcrumbs()
 
@@ -328,8 +367,37 @@ func _on_button_open_pressed():
 	open_file_dialog.current_dir = last_graph_open_dir
 	open_file_dialog.popup_centered_ratio(0.4)
 
+func _show_save_graph_dialog():
+	if not save_file_dialog:
+		save_file_dialog = EditorFileDialog.new()
+		save_file_dialog.file_mode = EditorFileDialog.FILE_MODE_SAVE_FILE
+		save_file_dialog.access = EditorFileDialog.ACCESS_RESOURCES
+		save_file_dialog.add_filter("*.tres", "Flow Graph Resource")
+		save_file_dialog.add_filter("*.res", "Flow Graph Resource")
+		save_file_dialog.file_selected.connect(_on_graph_save_file_selected)
+		add_child(save_file_dialog)
+	save_file_dialog.current_dir = last_graph_open_dir
+	save_file_dialog.current_file = "untitled_flow_graph.tres"
+	save_file_dialog.popup_centered_ratio(0.4)
+
+func _show_unsaved_close_warning(index: int):
+	if not unsaved_close_dialog:
+		unsaved_close_dialog = AcceptDialog.new()
+		unsaved_close_dialog.title = FlowI18n.t("Unsaved Resource")
+		add_child(unsaved_close_dialog)
+	var title := FlowI18n.t("Untitled / Unsaved")
+	if index >= 0 and index < open_tabs.size():
+		var tab_res = open_tabs[index].resource
+		if is_instance_valid(tab_res) and tab_res.resource_path != "":
+			title = tab_res.resource_path.get_file()
+	unsaved_close_dialog.dialog_text = FlowI18n.t("Save the graph before closing it:") + "\n" + title
+	unsaved_close_dialog.popup_centered()
+
 func _on_graph_file_selected(path: String):
 	await _open_graph_file_with_loading(path)
+
+func _on_graph_save_file_selected(path: String):
+	_save_current_resource_to_path(path)
 
 func _open_graph_file_with_loading(path: String) -> void:
 	await _set_graph_loading_progress("Opening Graph...", 5.0)
@@ -380,7 +448,8 @@ func _set_resource_to_edit_with_loading(new_resource: FlowGraphResource, new_res
 
 	open_tabs.append({
 		"resource": new_resource,
-		"owner": new_resource_owner
+		"owner": new_resource_owner,
+		"dirty": false
 	})
 	tab_bar.add_tab(tab_title)
 	await _switch_to_tab_with_loading(open_tabs.size() - 1, new_resource_owner)
@@ -651,6 +720,23 @@ func saveResource():
 	FlowNodeIO.saveToResource( self )
 	save_pending = false
 	save_pending_delay = 0.0
+
+func _save_current_resource_to_path(path: String) -> bool:
+	if not current_resource:
+		return false
+	saveResource()
+	var save_path := path
+	if save_path.get_extension().is_empty():
+		save_path += ".tres"
+	var err := ResourceSaver.save(current_resource, save_path)
+	if err == OK:
+		current_resource.take_over_path(save_path)
+		last_graph_open_dir = save_path.get_base_dir()
+		_set_current_graph_dirty(false)
+		update_status_bar(FlowI18n.t("Saved Resource"))
+		return true
+	update_status_bar("Save failed: %s" % error_string(err))
+	return false
 	
 func _process(delta: float) -> void:
 	if node_registry_version != FlowNodeRegistry.get_version():
@@ -1193,6 +1279,7 @@ func _ready():
 	if not gedit.end_node_move.is_connected(_on_graph_edit_end_node_move):
 		gedit.end_node_move.connect(_on_graph_edit_end_node_move)
 	
+	ensureCurrentResource()
 	update_status_bar()
 
 func _setup_toolbar_settings_panel(toolbar: HBoxContainer):
@@ -1210,6 +1297,8 @@ func _setup_toolbar_settings_panel(toolbar: HBoxContainer):
 	var inputs_button = toolbar.get_node_or_null("ButtonInputs") as Button
 	if inputs_button:
 		inputs_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		if not inputs_button.pressed.is_connected(_on_button_inputs_pressed):
+			inputs_button.pressed.connect(_on_button_inputs_pressed)
 
 	expand_graph_button = Button.new()
 	expand_graph_button.name = "ButtonExpandGraph"
@@ -1828,15 +1917,25 @@ func _refresh_graph_resource_parameter_edit(prop_name: String) -> bool:
 	if not current_resource:
 		return false
 
-	_on_in_params_changed()
+	current_resource.emit_changed()
+	current_resource.in_params_changed.emit()
 	for node in getAllNodes():
-		if node.node_template == "input" or node.node_template == "output":
+		var is_graph_parameter_node = (
+			node.node_template == "input"
+			or node.node_template == "output"
+			or node.node_template.begins_with("input_")
+			or node.node_template.begins_with("output_")
+		)
+		if is_graph_parameter_node:
 			node.initFromScript()
 			node.refreshFromSettings()
 			refreshSignalsInputArgs(node)
 	queueSave()
 	queueRegen()
 	return true
+
+func notifyGraphParametersEdited(prop_name: String):
+	_refresh_graph_resource_parameter_edit(prop_name)
 	
 func onNodePropertyChanged( prop_name : String):
 	if _refresh_graph_resource_parameter_edit(prop_name):
@@ -1889,6 +1988,11 @@ func _get_selected_graph_element_names() -> Array:
 				selected_names.append(child.name)
 	return selected_names
 
+func _clear_graph_selection():
+	for child in gedit.get_children():
+		if child is GraphNode or child is GraphFrame:
+			child.selected = false
+
 func _restore_graph_selection(selected_names: Array):
 	var selected_lookup := {}
 	for node_name in selected_names:
@@ -1938,6 +2042,7 @@ func deleteSelectedNodes():
 	record_undo_action("Delete Nodes", before_state)
 	
 func queueSave():
+	_set_current_graph_dirty(true)
 	save_pending = true
 	save_pending_delay = SAVE_DEBOUNCE_SECONDS
 	
@@ -2225,6 +2330,7 @@ func _record_add_node_undo(
 		queueRegen()
 	
 func addNode( node_template, settings = null ):
+	ensureCurrentResource()
 	var selected_before := _get_selected_graph_element_names()
 	var name_counter_before := new_name_counter
 	var node_name = getNewName(node_template)
@@ -3424,9 +3530,13 @@ func _on_button_analyze_pressed() -> void:
 	analyzeSelection()
 
 func _on_button_save_pressed() -> void:
-	if current_resource:
-		saveResource()
-		ResourceSaver.save(current_resource)
+	ensureCurrentResource()
+	if not current_resource:
+		return
+	if current_resource.resource_path == "":
+		_show_save_graph_dialog()
+		return
+	_save_current_resource_to_path(current_resource.resource_path)
 
 func markAllNodesAsDirty():
 	for node in getAllNodes():
@@ -3469,9 +3579,11 @@ func _on_button_inputs_pressed():
 	_show_graph_inputs_panel()
 
 func _show_graph_inputs_panel():
+	ensureCurrentResource()
+	inspected_node = null
+	_clear_graph_selection()
 	if current_resource:
 		inspector.edit( current_resource )
-	inspected_node = null
 
 # Cut/Copy/Paste/Dupe
 func _on_graph_edit_copy_nodes_request():
