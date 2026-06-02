@@ -21,6 +21,7 @@ enum PinDirection {
 var _last_connection_zoom := -1.0
 
 func _ready() -> void:
+	minimap_enabled = false
 	_last_connection_zoom = zoom
 	set_process(true)
 

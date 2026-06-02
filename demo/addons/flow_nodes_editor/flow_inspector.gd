@@ -139,6 +139,15 @@ func _node_title(node: GraphNode) -> String:
 		return str(node.call("getLocalizedTitle"))
 	return FlowI18n.tn(node.title)
 
+func _hide_inspector_title_enabled() -> bool:
+	if current_target != null and "hide_inspector_title" in current_target:
+		return bool(current_target.hide_inspector_title)
+	if current_node != null and current_node.has_method("getEditor"):
+		var flow_editor = current_node.getEditor()
+		if flow_editor and "hide_inspector_title" in flow_editor:
+			return bool(flow_editor.hide_inspector_title)
+	return false
+
 func _localized_property_label(property_name: String) -> String:
 	return FlowI18n.tn(_format_label(property_name))
 
@@ -165,6 +174,9 @@ func _populate_flow_editor_settings(flow_editor):
 	settings_box.add_child(_create_row(FlowI18n.t("Node Language"), _create_editor_setting_checkbox(FlowI18n.is_node_translation_enabled(), func(pressed):
 		flow_editor._on_node_translation_toggled(pressed)
 	)))
+	settings_box.add_child(_create_row(FlowI18n.t("Hide Title"), _create_editor_setting_checkbox(flow_editor.hide_inspector_title, func(pressed):
+		flow_editor._on_hide_inspector_title_toggled(pressed)
+	)))
 
 func _create_editor_setting_checkbox(is_pressed: bool, changed: Callable) -> CheckBox:
 	var checkbox = CheckBox.new()
@@ -189,11 +201,12 @@ func _populate_frame_properties(frame: GraphFrame):
 	prop_box.add_child(_create_row(FlowI18n.t("Tint Enabled"), _create_bool_input(frame, "tint_color_enabled")))
 
 func _populate_generic_node_properties(node: GraphNode):
-	_add_header(_node_title(node), node.name)
+	var hide_title := _hide_inspector_title_enabled()
+	_add_header(_node_title(node), node.name, not hide_title)
 
 func _populate_node_properties(node: GraphNode, settings: Object):
-	# Header
-	_add_header(_node_title(node), node.name)
+	var hide_title := _hide_inspector_title_enabled()
+	_add_header(_node_title(node), node.name, not hide_title)
 	
 	# Build attribute selector lookup: prop_name -> port
 	var attr_selector_map := {}
@@ -211,7 +224,8 @@ func _populate_node_properties(node: GraphNode, settings: Object):
 	type_box.add_theme_constant_override("separation", 10)
 	content_vbox.add_child(type_box)
 
-	type_box.add_child(_create_row(FlowI18n.t("Title"), _create_string_input(settings, "title")))
+	if not hide_title:
+		type_box.add_child(_create_row(FlowI18n.t("Title"), _create_string_input(settings, "title")))
 
 	# Gather subclass-specific properties
 	var props = settings.get_property_list()
@@ -485,7 +499,7 @@ func _create_override_value_control(settings: SubgraphNodeSettings, param: Graph
 			return res_hbox
 	return null
 
-func _add_header(title_text: String, id_text: String):
+func _add_header(title_text: String, id_text: String, show_title: bool = true):
 	# Title bar panel matching #252836
 	var header_panel = PanelContainer.new()
 	var hb_style = StyleBoxFlat.new()
@@ -501,16 +515,17 @@ func _add_header(title_text: String, id_text: String):
 	header_vbox.add_theme_constant_override("separation", 2)
 	header_panel.add_child(header_vbox)
 	
-	var lbl_title = Label.new()
-	lbl_title.text = title_text
-	lbl_title.add_theme_font_size_override("font_size", 14)
-	lbl_title.add_theme_color_override("font_color", Color.WHITE)
-	header_vbox.add_child(lbl_title)
+	if show_title and not title_text.is_empty():
+		var lbl_title = Label.new()
+		lbl_title.text = title_text
+		lbl_title.add_theme_font_size_override("font_size", 14)
+		lbl_title.add_theme_color_override("font_color", Color.WHITE)
+		header_vbox.add_child(lbl_title)
 	
 	var lbl_id = Label.new()
 	lbl_id.text = id_text
-	lbl_id.add_theme_font_size_override("font_size", 10)
-	lbl_id.add_theme_color_override("font_color", Color("a1a1aa"))
+	lbl_id.add_theme_font_size_override("font_size", 10 if show_title and not title_text.is_empty() else 14)
+	lbl_id.add_theme_color_override("font_color", Color("a1a1aa") if show_title and not title_text.is_empty() else Color.WHITE)
 	header_vbox.add_child(lbl_id)
 	
 	content_vbox.add_child(header_panel)

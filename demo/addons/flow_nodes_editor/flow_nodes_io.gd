@@ -4,7 +4,8 @@ class_name FlowNodeIO
 # Here are all functions related to read/write the resources, including 
 # serialization to/from json for the clipboard
 
-const LOAD_PROGRESS_CHUNK_SIZE := 2
+const LOAD_PROGRESS_CHUNK_SIZE := 8
+const FAST_GRAPH_LOAD_NODE_THRESHOLD := 24
 
 static func resource_to_dict(resource: Resource) -> Dictionary:
 	var dict := {}
@@ -296,6 +297,8 @@ static func create_nodes_from_dict_with_progress(dict, editor: Control, paste_of
 		return []
 
 	var source_nodes: Array = dict.get("nodes", [])
+	if source_nodes.size() <= FAST_GRAPH_LOAD_NODE_THRESHOLD:
+		return create_nodes_from_dict(dict, editor, paste_offset)
 	var source_links: Array = dict.get("links", [])
 	var source_frames: Array = dict.get("frames", [])
 	var total_steps = maxi(source_nodes.size() * 4 + source_links.size() + source_frames.size(), 1)
@@ -306,7 +309,8 @@ static func create_nodes_from_dict_with_progress(dict, editor: Control, paste_of
 
 	for in_node in source_nodes:
 		completed_steps += 1
-		await _report_load_progress(progress_callback, "Building Graph...", completed_steps, total_steps, start_progress, end_progress)
+		if _should_report_load_progress(completed_steps, total_steps):
+			await _report_load_progress(progress_callback, "Building Graph...", completed_steps, total_steps, start_progress, end_progress)
 
 		var in_name = in_node.name
 		var node_template = _template_for_load(in_node, editor)
@@ -322,7 +326,8 @@ static func create_nodes_from_dict_with_progress(dict, editor: Control, paste_of
 		node.args_ports_by_name = in_node.get("args_port", {})
 
 		completed_steps += 1
-		await _report_load_progress(progress_callback, "Building Graph...", completed_steps, total_steps, start_progress, end_progress)
+		if _should_report_load_progress(completed_steps, total_steps):
+			await _report_load_progress(progress_callback, "Building Graph...", completed_steps, total_steps, start_progress, end_progress)
 
 		dict_to_resource(in_node.settings, node.settings)
 		_normalize_loaded_node_template(node, editor)
@@ -330,7 +335,8 @@ static func create_nodes_from_dict_with_progress(dict, editor: Control, paste_of
 		node.settings.inspect_enabled = false
 
 		completed_steps += 1
-		await _report_load_progress(progress_callback, "Building Graph...", completed_steps, total_steps, start_progress, end_progress)
+		if _should_report_load_progress(completed_steps, total_steps):
+			await _report_load_progress(progress_callback, "Building Graph...", completed_steps, total_steps, start_progress, end_progress)
 
 		node.initFromScript()
 		node.refreshFromSettings()
@@ -339,7 +345,8 @@ static func create_nodes_from_dict_with_progress(dict, editor: Control, paste_of
 		old_to_new_names[in_name] = new_name
 		new_nodes.append(node)
 		completed_steps += 1
-		await _report_load_progress(progress_callback, "Building Graph...", completed_steps, total_steps, start_progress, end_progress)
+		if _should_report_load_progress(completed_steps, total_steps):
+			await _report_load_progress(progress_callback, "Building Graph...", completed_steps, total_steps, start_progress, end_progress)
 
 	_remap_get_variable_names(new_nodes, variable_name_remaps)
 
@@ -435,6 +442,10 @@ static func loadFromResourceWithProgress(editor: Control, progress_callback: Cal
 	if current_resource == null:
 		return
 
+	if editor.has_method("_should_use_fast_graph_load") and editor._should_use_fast_graph_load(current_resource):
+		loadFromResource(editor)
+		return
+
 	await _call_load_progress(progress_callback, "Registering Parameters...", 45.0)
 	for input in current_resource.in_params:
 		editor.registerInputNodeType(input)
@@ -453,7 +464,12 @@ static func loadFromResourceWithProgress(editor: Control, progress_callback: Cal
 	editor.data_inspector.setNode(null)
 
 static func _should_report_load_progress(completed_steps: int, total_steps: int) -> bool:
-	return completed_steps == total_steps or completed_steps % LOAD_PROGRESS_CHUNK_SIZE == 0
+	if completed_steps == total_steps:
+		return true
+	if total_steps <= FAST_GRAPH_LOAD_NODE_THRESHOLD * 4:
+		return false
+	var chunk := maxi(total_steps / 20, LOAD_PROGRESS_CHUNK_SIZE)
+	return completed_steps % chunk == 0
 
 static func _report_load_progress(progress_callback: Callable, message: String, completed_steps: int, total_steps: int, start_progress: float, end_progress: float) -> void:
 	var ratio := float(completed_steps) / float(maxi(total_steps, 1))

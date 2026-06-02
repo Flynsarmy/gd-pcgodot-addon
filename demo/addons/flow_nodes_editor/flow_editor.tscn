@@ -83,6 +83,7 @@ right_disconnects = true
 connection_lines_thickness = 2.0
 show_zoom_buttons = false
 show_grid_buttons = false
+minimap_enabled = false
 script = ExtResource("2_l4kri")
 
 [connection signal="pressed" from="VBoxContainer/ScrollContainer/HBoxContainer/ButtonReload" to="." method="_on_button_reload_pressed"]

@@ -32,8 +32,10 @@ var custom_graph_grid
 # This is the default graph-node instantiated, the script contains the logic
 var packed_node = preload("res://addons/flow_nodes_editor/node.tscn")
 const directory_path := FlowNodeRegistry.DEFAULT_NODE_DIRECTORY
+const FAST_GRAPH_LOAD_NODE_THRESHOLD := 24
 const EDITOR_SETTING_AUTO_REGEN := "addons/flow_nodes_editor/auto_generate"
 const EDITOR_SETTING_NATIVE_GRAPH_GRID := "addons/flow_nodes_editor/use_native_graph_grid"
+const EDITOR_SETTING_HIDE_INSPECTOR_TITLE := "addons/flow_nodes_editor/hide_inspector_title"
 
 # New nodes generation using the editor
 var local_drop_position : Vector2 = Vector2(0,0)
@@ -62,6 +64,7 @@ var undo_redo: EditorUndoRedoManager
 var drag_start_snapshot : Dictionary = {}
 var suppress_next_editor_scene_changed := false
 var color_nodes : bool = true
+var hide_inspector_title : bool = false
 
 var ui_scale = 1.0
 var node_types = { }
@@ -202,7 +205,7 @@ func _switch_to_tab(index: int, new_owner = null):
 	
 	_clear_ui_nodes()
 	
-	scanAvailableNodes()
+	scanAvailableNodesIfNeeded()
 	FlowNodeIO.loadFromResource( self )
 	
 	ctx.graph = current_resource
@@ -400,13 +403,15 @@ func _on_graph_save_file_selected(path: String):
 	_save_current_resource_to_path(path)
 
 func _open_graph_file_with_loading(path: String) -> void:
-	await _set_graph_loading_progress("Opening Graph...", 5.0)
-	await _set_graph_loading_progress("Loading Resource...", 18.0)
+	_set_graph_loading_progress("Opening Graph...", 5.0)
+	await get_tree().process_frame
+	_set_graph_loading_progress("Loading Resource...", 18.0)
 	var res = ResourceLoader.load(path, "Resource", ResourceLoader.CACHE_MODE_REPLACE)
 	if res is FlowGraphResource:
 		last_graph_open_dir = path.get_base_dir()
 		await _set_resource_to_edit_with_loading(res, null)
-		await _set_graph_loading_progress("Graph Loaded", 100.0)
+		_set_graph_loading_progress("Graph Loaded", 100.0)
+		await get_tree().process_frame
 		_hide_graph_loading()
 	else:
 		_hide_graph_loading()
@@ -416,7 +421,7 @@ func _open_graph_file_with_loading(path: String) -> void:
 func _set_resource_to_edit_with_loading(new_resource: FlowGraphResource, new_resource_owner: FlowGraphNode3D) -> void:
 	if new_resource == null:
 		if current_resource:
-			await _set_graph_loading_progress("Saving Current Graph...", 24.0)
+			_set_graph_loading_progress("Saving Current Graph...", 24.0)
 			saveResource()
 		return
 
@@ -437,7 +442,7 @@ func _set_resource_to_edit_with_loading(new_resource: FlowGraphResource, new_res
 		return
 
 	if current_resource:
-		await _set_graph_loading_progress("Saving Current Graph...", 24.0)
+		_set_graph_loading_progress("Saving Current Graph...", 24.0)
 		saveResource()
 
 	var tab_title := "New Graph"
@@ -463,7 +468,7 @@ func _switch_to_tab_with_loading(index: int, new_owner = null) -> void:
 
 	active_tab_index = index
 
-	await _set_graph_loading_progress("Refreshing Resource...", 28.0)
+	_set_graph_loading_progress("Refreshing Resource...", 28.0)
 	var tab_resource = open_tabs[index].resource
 	var refreshed = _reload_resource_from_disk(tab_resource)
 	if refreshed != tab_resource:
@@ -477,15 +482,19 @@ func _switch_to_tab_with_loading(index: int, new_owner = null) -> void:
 		open_tabs[index].owner = new_owner
 	resource_owner = open_tabs[index].owner
 
-	await _set_graph_loading_progress("Clearing Graph...", 34.0)
+	_set_graph_loading_progress("Clearing Graph...", 34.0)
 	_clear_ui_nodes()
 
-	await _set_graph_loading_progress("Scanning Nodes...", 42.0)
-	scanAvailableNodes()
+	_set_graph_loading_progress("Scanning Nodes...", 42.0)
+	scanAvailableNodesIfNeeded()
 
-	await FlowNodeIO.loadFromResourceWithProgress(self, Callable(self, "_set_graph_loading_progress"))
+	var use_fast_graph_load := _should_use_fast_graph_load(current_resource)
+	if use_fast_graph_load:
+		FlowNodeIO.loadFromResource(self)
+	else:
+		await FlowNodeIO.loadFromResourceWithProgress(self, Callable(self, "_set_graph_loading_progress"))
 
-	await _set_graph_loading_progress("Finalizing Graph...", 96.0)
+	_set_graph_loading_progress("Finalizing Graph...", 96.0)
 	ctx.graph = current_resource
 	ctx.owner = resource_owner
 	ctx.gedit_nodes_by_name = gedit_nodes_by_name
@@ -586,7 +595,17 @@ func _set_graph_loading_progress(message: String, value: float) -> void:
 	graph_loading_overlay.visible = true
 	graph_loading_overlay.move_to_front()
 	_update_graph_loading_animation(0.0)
-	await get_tree().process_frame
+
+func _should_use_fast_graph_load(resource: FlowGraphResource) -> bool:
+	return _count_graph_nodes(resource) <= FAST_GRAPH_LOAD_NODE_THRESHOLD
+
+func _count_graph_nodes(resource: FlowGraphResource) -> int:
+	if resource == null or resource.data == null or resource.data.is_empty():
+		return 0
+	var nodes = resource.data.get("nodes", null)
+	if nodes == null:
+		return 0
+	return nodes.size()
 
 func _hide_graph_loading() -> void:
 	if graph_loading_overlay:
@@ -689,7 +708,7 @@ func _on_filesystem_changed():
 	if resource_stale:
 		# Rebuild the UI from the fresh resource
 		_clear_ui_nodes()
-		scanAvailableNodes()
+		scanAvailableNodes(true)
 		FlowNodeIO.loadFromResource(self)
 		ctx.graph = current_resource
 		ctx.owner = resource_owner
@@ -804,7 +823,7 @@ func _normalize_node_script_path(file_name: String, base_directory: String = dir
 		normalized = "%s/%s" % [base_directory, normalized]
 	return normalized
 
-func registerNodeType(node_type_name: String, file_name: String, base_directory: String = directory_path):
+func registerNodeType(node_type_name: String, file_name: String, base_directory: String = directory_path, force_reload: bool = false):
 	var full_res_path := _normalize_node_script_path(file_name, base_directory)
 	if full_res_path.is_empty():
 		if file_name.begins_with("uid://"):
@@ -813,18 +832,29 @@ func registerNodeType(node_type_name: String, file_name: String, base_directory:
 	if not ResourceLoader.exists(full_res_path, "Script"):
 		push_warning("Skipping missing node script %s" % full_res_path)
 		return
-	var loaded_class : Script = ResourceLoader.load(full_res_path, "Script", ResourceLoader.CACHE_MODE_REPLACE) as Script
+	var current_mtime := FileAccess.get_modified_time(full_res_path)
+	if not force_reload and node_types.has(node_type_name):
+		var existing_meta = node_types[node_type_name]
+		if existing_meta.get("full_res_path", "") == full_res_path and existing_meta.get("last_modified_time", -1) == current_mtime:
+			return
+	var cache_mode := ResourceLoader.CACHE_MODE_REPLACE if force_reload else ResourceLoader.CACHE_MODE_REUSE
+	var loaded_class : Script = ResourceLoader.load(full_res_path, "Script", cache_mode) as Script
 	if not loaded_class:
 		push_error("Failed to load class %s" % full_res_path )
 		return
-	# Force compilation on load to compile disk changes
-	loaded_class.reload(true)
+	var needs_reload := force_reload
+	if not needs_reload:
+		if node_types.has(node_type_name):
+			needs_reload = current_mtime != node_types[node_type_name].get("last_modified_time", -1)
+		elif not loaded_class.can_instantiate():
+			needs_reload = true
+	if needs_reload:
+		loaded_class.reload(true)
 	if not loaded_class.can_instantiate():
 		var reload_err := loaded_class.reload(false)
 		if reload_err != OK or not loaded_class.can_instantiate():
 			push_error("Script %s failed to compile or cannot be instantiated" % full_res_path)
 			return
-	print( "Loading class %s" % full_res_path )
 	var instance = loaded_class.new()
 	var flow_node := instance as FlowNodeBase
 	if not flow_node:
@@ -839,7 +869,7 @@ func registerNodeType(node_type_name: String, file_name: String, base_directory:
 		return
 	meta.factory = loaded_class
 	meta.full_res_path = full_res_path
-	meta.last_modified_time = FileAccess.get_modified_time(full_res_path)
+	meta.last_modified_time = current_mtime
 	#print( "Registering node type %s" % node_type_name )
 	if node_types.has(node_type_name):
 		var existing_path := String(node_types[node_type_name].get("full_res_path", ""))
@@ -884,7 +914,17 @@ func normalizeDynamicNodeTemplate(node: FlowNodeBase) -> void:
 	ensureNodeTypeRegistered(canonical_template)
 	node.node_template = canonical_template
 
-func scanAvailableNodes():
+func scanAvailableNodesIfNeeded(force: bool = false) -> void:
+	var registry_version := FlowNodeRegistry.get_version()
+	if not force and node_registry_version == registry_version and not node_types.is_empty():
+		_register_graph_dynamic_node_types()
+		return
+	scanAvailableNodes()
+
+func scanAvailableNodes(force: bool = false):
+	if not force and not node_types.is_empty() and node_registry_version == FlowNodeRegistry.get_version():
+		_register_graph_dynamic_node_types()
+		return
 	node_types.clear()
 	node_registry_version = FlowNodeRegistry.get_version()
 	for node_directory in FlowNodeRegistry.get_node_directories():
@@ -906,15 +946,18 @@ func scanAvailableNodes():
 		node_files.sort()
 		for file in node_files:
 			var stem := file.get_basename()
-			registerNodeType( stem, file, node_directory )
+			registerNodeType( stem, file, node_directory, force )
 
-	# Dynamic input_* and output_* templates depend on the graph being edited.
-	if current_resource:
-		for input in current_resource.in_params:
-			registerInputNodeType(input)
-		if "out_params" in current_resource:
-			for output in current_resource.out_params:
-				registerOutputNodeType(output)
+	_register_graph_dynamic_node_types()
+
+func _register_graph_dynamic_node_types() -> void:
+	if not current_resource:
+		return
+	for input in current_resource.in_params:
+		registerInputNodeType(input)
+	if "out_params" in current_resource:
+		for output in current_resource.out_params:
+			registerOutputNodeType(output)
 
 func populatePopupInputsMenu():
 	if not popup_menu_inputs:
@@ -1352,8 +1395,15 @@ func _load_editor_settings():
 		"name": EDITOR_SETTING_NATIVE_GRAPH_GRID,
 		"type": TYPE_BOOL,
 	})
+	if not editor_settings.has_setting(EDITOR_SETTING_HIDE_INSPECTOR_TITLE):
+		editor_settings.set_setting(EDITOR_SETTING_HIDE_INSPECTOR_TITLE, hide_inspector_title)
+	editor_settings.add_property_info({
+		"name": EDITOR_SETTING_HIDE_INSPECTOR_TITLE,
+		"type": TYPE_BOOL,
+	})
 	auto_regen = bool(editor_settings.get_setting(EDITOR_SETTING_AUTO_REGEN))
 	use_native_graph_grid = bool(editor_settings.get_setting(EDITOR_SETTING_NATIVE_GRAPH_GRID))
+	hide_inspector_title = bool(editor_settings.get_setting(EDITOR_SETTING_HIDE_INSPECTOR_TITLE))
 
 func _save_editor_settings():
 	var editor_settings := EditorInterface.get_editor_settings()
@@ -1361,6 +1411,7 @@ func _save_editor_settings():
 		return
 	editor_settings.set_setting(EDITOR_SETTING_AUTO_REGEN, auto_regen)
 	editor_settings.set_setting(EDITOR_SETTING_NATIVE_GRAPH_GRID, use_native_graph_grid)
+	editor_settings.set_setting(EDITOR_SETTING_HIDE_INSPECTOR_TITLE, hide_inspector_title)
 
 func _apply_graph_grid_mode():
 	if not gedit:
@@ -3671,16 +3722,20 @@ func _on_button_reload_pressed() -> void:
 
 func _reload_current_graph_with_loading() -> void:
 	if not current_resource:
-		scanAvailableNodes()
+		scanAvailableNodesIfNeeded()
 		return
 
-	await _set_graph_loading_progress("Reloading Graph...", 8.0)
-	await _set_graph_loading_progress("Scanning Nodes...", 24.0)
-	scanAvailableNodes()
-	await _set_graph_loading_progress("Clearing Graph...", 34.0)
+	_set_graph_loading_progress("Reloading Graph...", 8.0)
+	await get_tree().process_frame
+	_set_graph_loading_progress("Scanning Nodes...", 24.0)
+	scanAvailableNodesIfNeeded()
+	_set_graph_loading_progress("Clearing Graph...", 34.0)
 	_clear_ui_nodes()
-	await FlowNodeIO.loadFromResourceWithProgress(self, Callable(self, "_set_graph_loading_progress"))
-	await _set_graph_loading_progress("Finalizing Graph...", 96.0)
+	if _should_use_fast_graph_load(current_resource):
+		FlowNodeIO.loadFromResource(self)
+	else:
+		await FlowNodeIO.loadFromResourceWithProgress(self, Callable(self, "_set_graph_loading_progress"))
+	_set_graph_loading_progress("Finalizing Graph...", 96.0)
 	ctx.graph = current_resource
 	ctx.owner = resource_owner
 	ctx.gedit_nodes_by_name = gedit_nodes_by_name
@@ -3689,13 +3744,14 @@ func _reload_current_graph_with_loading() -> void:
 	populatePopupInputsMenu()
 	populatePopupOutputsMenu()
 	update_status_bar()
-	await _set_graph_loading_progress("Graph Loaded", 100.0)
+	_set_graph_loading_progress("Graph Loaded", 100.0)
+	await get_tree().process_frame
 	_hide_graph_loading()
 
 func _on_node_registry_changed() -> void:
 	if current_resource and save_pending:
 		saveResource()
-	scanAvailableNodes()
+	scanAvailableNodes(true)
 	if not current_resource:
 		return
 	_clear_ui_nodes()
@@ -4008,6 +4064,12 @@ func _on_color_nodes_toggled(toggled_on: bool) -> void:
 		%CheckColorNodes.set_pressed_no_signal(toggled_on)
 	for node in getAllNodes():
 		node.refreshFromSettings()
+
+func _on_hide_inspector_title_toggled(toggled_on: bool) -> void:
+	hide_inspector_title = toggled_on
+	_save_editor_settings()
+	if inspector and inspected_node:
+		inspector.edit(inspected_node)
 
 func apply_connections_change(conns_to_remove: Array, conns_to_add: Array):
 	for c in conns_to_remove:
