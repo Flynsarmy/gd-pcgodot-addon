@@ -61,6 +61,10 @@ theme_override_constants/separation = 6
 layout_mode = 2
 text = "Save Resource"
 
+[node name="ButtonBrowse" type="Button" parent="VBoxContainer/ScrollContainer/HBoxContainer"]
+layout_mode = 2
+text = "Browse"
+
 [node name="ButtonReload" type="Button" parent="VBoxContainer/ScrollContainer/HBoxContainer"]
 layout_mode = 2
 text = "Reload"

@@ -72,6 +72,7 @@ static func connect_signals(refs: Refs) -> void:
 	if refs.open_graph_button and not refs.open_graph_button.pressed.is_connected(host._on_button_open_pressed):
 		refs.open_graph_button.pressed.connect(host._on_button_open_pressed)
 	_connect_pressed(refs, "ButtonSave", host._on_button_save_pressed)
+	_connect_pressed(refs, "ButtonBrowse", host._on_button_browse_pressed)
 	_connect_pressed(refs, "ButtonReload", host._on_button_reload_pressed)
 	_connect_pressed(refs, "ButtonAnalyze", host._on_button_analyze_pressed)
 	_connect_pressed(refs, "ButtonRegenerate", host._on_button_regenerate_pressed)
@@ -152,6 +153,7 @@ static func apply_translations(refs: Refs) -> void:
 		"ButtonReload": "Reload",
 		"ButtonInputs": "Inputs",
 		"ButtonSave": "Save Resource",
+		"ButtonBrowse": "Browse",
 		"AutoRegen": "Auto Generate",
 		"CheckColorNodes": "Color Nodes",
 		"ButtonRegenerate": "Regenerate",
@@ -166,6 +168,7 @@ static func apply_translations(refs: Refs) -> void:
 			(control as Label).text = FlowI18n.t(String(text_by_name[node_name]))
 	var tooltip_by_name := {
 		"ButtonAnalyze": "Inspect selected node raw data (A)",
+		"ButtonBrowse": "Reveal the saved graph resource in the FileSystem dock",
 		"ButtonExpandGraph": "Float and Maximize Graph Panel",
 	}
 	for node_name in tooltip_by_name:

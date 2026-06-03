@@ -1573,6 +1573,24 @@ func _on_native_graph_grid_toggled(toggled_on: bool):
 	_save_editor_settings()
 	_apply_graph_grid_mode()
 
+func _is_graph_panel_floating() -> bool:
+	var current_window := get_window()
+	var main_window := EditorInterface.get_base_control().get_window()
+	return current_window != null and main_window != null and current_window != main_window
+
+
+func _embed_floating_graph_panel_if_needed() -> bool:
+	if not _is_graph_panel_floating():
+		return false
+	# Same path as the floating dock title-bar close (×): WindowWrapper handles close_requested.
+	var floated_window := get_window() as Window
+	if floated_window != null:
+		floated_window.emit_signal("close_requested")
+		return true
+	push_warning("Data Flow: could not embed floating graph dock.")
+	return false
+
+
 func _float_graph_panel():
 	var current_window := get_window()
 	var main_window := EditorInterface.get_base_control().get_window()
@@ -4070,6 +4088,31 @@ func _on_button_save_pressed() -> void:
 		_show_save_graph_dialog()
 		return
 	_save_current_resource_to_path(current_resource.resource_path)
+
+
+func _on_button_browse_pressed() -> void:
+	if _is_graph_panel_floating():
+		_embed_floating_graph_panel_if_needed()
+		call_deferred("_finish_button_browse_pressed")
+		return
+	_finish_button_browse_pressed()
+
+
+func _finish_button_browse_pressed() -> void:
+	ensureCurrentResource()
+	if not current_resource:
+		return
+	var path := String(current_resource.resource_path)
+	if path.is_empty():
+		update_status_bar(FlowI18n.t("Save the resource before revealing it in the file system."))
+		return
+	var fs_dock := EditorInterface.get_file_system_dock()
+	if fs_dock == null:
+		update_status_bar(FlowI18n.t("File system dock is unavailable."))
+		return
+	fs_dock.navigate_to_path(path)
+	update_status_bar(FlowI18n.t("Revealed in FileSystem: %s") % path.get_file())
+
 
 func markAllNodesAsDirty():
 	for node in getAllNodes():
