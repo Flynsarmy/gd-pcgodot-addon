@@ -3790,28 +3790,12 @@ func refreshVariableNodes() -> void:
 		node.dirty = true
 		node.refreshFromSettings()
 	
-func getEvalOrder():
-	# Find targets, like spawn meshes
-	var finals := getAllNodes().filter(func(node: FlowNodeBase) -> bool:
-		if node.settings.disabled:
-			return false
-		return FlowNodeIO._is_topo_final_root(node)
-	)
-	
-	# for each node, find requirements
-	# A -
-	#    -- C - D
-	# B -
-	# D -> C -> A -> B
-	var all_deps : Array[ FlowNodeBase ]
-	for node in finals:
-		var node_deps = getDeps( node )
-		all_deps.append_array( node_deps )
-	
-	# Evaluate in inverse order
-	# B, A, C, D
-	all_deps.reverse()	
-	return all_deps
+func getEvalOrder() -> Array[FlowNodeBase]:
+	var node_list := getAllNodes()
+	var instances_by_name: Dictionary = {}
+	for node in node_list:
+		instances_by_name[node.name] = node
+	return FlowNodeIO.build_execution_order(node_list, instances_by_name)
 
 func removeGeneratedNodes():
 	if not resource_owner:
