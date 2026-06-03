@@ -139,6 +139,60 @@ func _set_current_graph_dirty(dirty: bool) -> void:
 	if _active_tab_is_valid():
 		_set_tab_dirty(active_tab_index, dirty)
 
+
+func _is_pristine_untitled_tab(index: int) -> bool:
+	if index < 0 or index >= open_tabs.size():
+		return false
+	if _is_tab_dirty(index):
+		return false
+	var tab_res := open_tabs[index].resource as FlowGraphResource
+	if not is_instance_valid(tab_res) or tab_res.resource_path != "":
+		return false
+	if open_tabs[index].owner != null:
+		return false
+	var nodes: Array = tab_res.data.get("nodes", [])
+	if not nodes.is_empty():
+		return false
+	var frames: Array = tab_res.data.get("frames", [])
+	return frames.is_empty()
+
+
+func _close_pristine_untitled_tabs(keep_resource: FlowGraphResource) -> void:
+	if keep_resource == null:
+		return
+	for index in range(open_tabs.size() - 1, -1, -1):
+		if open_tabs[index].resource == keep_resource:
+			continue
+		if not _is_pristine_untitled_tab(index):
+			continue
+		_close_tab_at_index(index)
+
+
+func _close_tab_at_index(index: int) -> void:
+	if index < 0 or index >= open_tabs.size():
+		return
+	var closed_active := index == active_tab_index
+	if closed_active and current_resource:
+		saveResource()
+	var tab_res = open_tabs[index].resource
+	if tab_res and tab_res.in_params_changed.is_connected(_on_in_params_changed):
+		tab_res.in_params_changed.disconnect(_on_in_params_changed)
+	open_tabs.remove_at(index)
+	_sync_tab_bar_from_open_tabs()
+	if open_tabs.is_empty():
+		current_resource = null
+		resource_owner = null
+		active_tab_index = -1
+		_clear_ui_nodes()
+		ensureCurrentResource()
+		return
+	if closed_active:
+		var new_idx := clampi(index - 1, 0, open_tabs.size() - 1)
+		_switch_to_tab(new_idx)
+	elif active_tab_index > index:
+		active_tab_index -= 1
+
+
 func ensureCurrentResource() -> FlowGraphResource:
 	if current_resource:
 		return current_resource
@@ -433,8 +487,10 @@ func setResourceToEdit( new_resource : FlowGraphResource, new_resource_owner : F
 				resource_owner = new_resource_owner
 				open_tabs[found_idx].owner = new_resource_owner
 				ctx.owner = new_resource_owner
+			_close_pristine_untitled_tabs(new_resource)
 			return
 		_switch_to_tab(found_idx, new_resource_owner)
+		_close_pristine_untitled_tabs(new_resource)
 	else:
 		# Save current tab before opening a new one
 		if current_resource:
@@ -453,6 +509,7 @@ func setResourceToEdit( new_resource : FlowGraphResource, new_resource_owner : F
 		})
 		_sync_tab_bar_from_open_tabs()
 		_switch_to_tab(open_tabs.size() - 1, new_resource_owner)
+		_close_pristine_untitled_tabs(new_resource)
 
 func _switch_to_tab(index: int, new_owner = null):
 	if index < 0 or index >= open_tabs.size():
@@ -506,35 +563,12 @@ func _on_tab_changed(index: int):
 		_switch_to_tab(index)
 
 func _on_tab_close_pressed(index: int):
-	if index >= 0 and index < open_tabs.size():
-		if _is_tab_dirty(index):
-			_show_unsaved_close_warning(index)
-			return
-
-		var closed_active = (index == active_tab_index)
-		if closed_active and current_resource:
-			saveResource()
-			
-		var tab_res = open_tabs[index].resource
-		if tab_res and tab_res.in_params_changed.is_connected(_on_in_params_changed):
-			tab_res.in_params_changed.disconnect(_on_in_params_changed)
-			
-		open_tabs.remove_at(index)
-		_sync_tab_bar_from_open_tabs()
-		
-		if open_tabs.is_empty():
-			current_resource = null
-			resource_owner = null
-			active_tab_index = -1
-			_clear_ui_nodes()
-			ensureCurrentResource()
-		else:
-			if closed_active:
-				var new_idx = clamp(index - 1, 0, open_tabs.size() - 1)
-				_switch_to_tab(new_idx)
-			else:
-				if active_tab_index > index:
-					active_tab_index -= 1
+	if index < 0 or index >= open_tabs.size():
+		return
+	if _is_tab_dirty(index):
+		_show_unsaved_close_warning(index)
+		return
+	_close_tab_at_index(index)
 
 func _clear_ui_nodes() -> void:
 	clear_graph()
@@ -648,8 +682,10 @@ func _set_resource_to_edit_with_loading(new_resource: FlowGraphResource, new_res
 				resource_owner = new_resource_owner
 				open_tabs[found_idx].owner = new_resource_owner
 				ctx.owner = new_resource_owner
+			_close_pristine_untitled_tabs(new_resource)
 			return
 		await _switch_to_tab_with_loading(found_idx, new_resource_owner)
+		_close_pristine_untitled_tabs(new_resource)
 		return
 
 	if current_resource:
@@ -669,6 +705,7 @@ func _set_resource_to_edit_with_loading(new_resource: FlowGraphResource, new_res
 	})
 	_sync_tab_bar_from_open_tabs()
 	await _switch_to_tab_with_loading(open_tabs.size() - 1, new_resource_owner)
+	_close_pristine_untitled_tabs(new_resource)
 
 func _switch_to_tab_with_loading(index: int, new_owner = null) -> void:
 	if index < 0 or index >= open_tabs.size():
