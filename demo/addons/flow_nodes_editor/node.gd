@@ -311,6 +311,13 @@ func _gui_input(event: InputEvent) -> void:
 							child.selected = false
 					selected = true
 				# Already selected without modifier: keep multi-selection for group drag.
+			if node_template == "set_variable" or node_template == "get_variable":
+				var editor = getEditor()
+				if editor:
+					if node_template == "set_variable" and editor.has_method("flash_linked_get_variable_nodes"):
+						editor.flash_linked_get_variable_nodes(self)
+					elif node_template == "get_variable" and editor.has_method("flash_linked_set_variable_nodes"):
+						editor.flash_linked_set_variable_nodes(self)
 			if event.double_click:
 				if node_template == "subgraph" and settings and "graph" in settings and settings.graph:
 					var editor = getEditor()

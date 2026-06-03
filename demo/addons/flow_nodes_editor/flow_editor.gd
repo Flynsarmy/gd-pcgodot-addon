@@ -2624,8 +2624,6 @@ func _on_graph_edit_node_selected(node):
 	inspected_node = node
 	if inspected_node:
 		inspector.edit(inspected_node)
-		if inspected_node is FlowNodeBase:
-			_flash_get_variable_nodes_for_set(inspected_node as FlowNodeBase)
 		
 	update_status_bar()
 
@@ -3324,7 +3322,7 @@ func getSetVariableNodes(variable_name: String = "", exclude_node: FlowNodeBase 
 		nodes.append(node)
 	return nodes
 
-func _flash_get_variable_nodes_for_set(set_node: FlowNodeBase) -> void:
+func flash_linked_get_variable_nodes(set_node: FlowNodeBase) -> void:
 	if set_node == null or not is_instance_valid(set_node):
 		return
 	if set_node.node_template != "set_variable":
@@ -3334,6 +3332,17 @@ func _flash_get_variable_nodes_for_set(set_node: FlowNodeBase) -> void:
 		return
 	for get_node in getGetVariableNodes(variable_name):
 		_flash_graph_node_white_twice(get_node)
+
+func flash_linked_set_variable_nodes(get_node: FlowNodeBase) -> void:
+	if get_node == null or not is_instance_valid(get_node):
+		return
+	if get_node.node_template != "get_variable":
+		return
+	var variable_name := FlowVariableEval.variable_name_from_node(get_node)
+	if variable_name.is_empty():
+		return
+	for set_node in getSetVariableNodes(variable_name):
+		_flash_graph_node_white_twice(set_node)
 
 func _flash_graph_node_white_twice(node: CanvasItem) -> void:
 	if node == null or not is_instance_valid(node):
