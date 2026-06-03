@@ -18,7 +18,6 @@ var ui_scale: float = 1.0
 
 var scroll_container: ScrollContainer
 var content_vbox: VBoxContainer
-var placeholder_label: Label
 
 func _scaled_font_size(base_size: int) -> int:
 	return maxi(1, int(round(base_size * ui_scale)))
@@ -59,18 +58,14 @@ func _ready():
 	content_vbox.add_theme_constant_override("separation", 12)
 	margin_container.add_child(content_vbox)
 
-	# Create Placeholder Label
-	placeholder_label = Label.new()
-	placeholder_label.text = FlowI18n.t("Select a node to inspect its settings.")
-	placeholder_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-	placeholder_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	placeholder_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	placeholder_label.add_theme_color_override("font_color", Color("a1a1aa"))
-	placeholder_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	placeholder_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	add_child(placeholder_label)
-
 	edit(null)
+
+
+func _sync_panel_visibility() -> void:
+	var has_content := current_target != null and content_vbox.get_child_count() > 0
+	visible = has_content
+	scroll_container.visible = has_content
+
 
 func edit(target_node: Object):
 	current_target = target_node
@@ -83,12 +78,8 @@ func edit(target_node: Object):
 		content_vbox.remove_child(child)
 
 	if target_node == null:
-		scroll_container.visible = false
-		placeholder_label.visible = true
+		_sync_panel_visibility()
 		return
-
-	scroll_container.visible = true
-	placeholder_label.visible = false
 
 	if target_node is GraphFrame:
 		_populate_frame_properties(target_node)
@@ -98,12 +89,14 @@ func edit(target_node: Object):
 			if editor_instance and editor_instance.current_resource:
 				current_settings = editor_instance.current_resource
 				_populate_graph_resource_properties(editor_instance.current_resource)
+				_sync_panel_visibility()
 				return
 		elif target_node.node_template == "output":
 			var editor_instance = target_node.getEditor()
 			if editor_instance and editor_instance.current_resource:
 				current_settings = editor_instance.current_resource
 				_populate_graph_resource_outputs(editor_instance.current_resource)
+				_sync_panel_visibility()
 				return
 		if "settings" in target_node and target_node.settings != null:
 			current_settings = target_node.settings
@@ -116,6 +109,7 @@ func edit(target_node: Object):
 	elif target_node is Resource:
 		current_settings = target_node
 		_populate_generic_resource_properties(target_node)
+	_sync_panel_visibility()
 
 func edit_editor_settings(flow_editor):
 	current_target = flow_editor
@@ -126,12 +120,10 @@ func edit_editor_settings(flow_editor):
 		child.queue_free()
 		content_vbox.remove_child(child)
 
-	scroll_container.visible = true
-	placeholder_label.visible = false
 	_populate_flow_editor_settings(flow_editor)
+	_sync_panel_visibility()
 
 func refresh_localized_text() -> void:
-	placeholder_label.text = FlowI18n.t("Select a node to inspect its settings.")
 	if current_target != null and is_instance_valid(current_target):
 		if current_target.has_method("_on_auto_regen_toggled"):
 			edit_editor_settings(current_target)
