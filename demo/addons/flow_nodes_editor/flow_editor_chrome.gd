@@ -5,12 +5,33 @@ extends RefCounted
 ## Toolbar + tab row (styles, signals, i18n). Does not touch graph / comment code.
 
 const INITIALIZED_META := &"flow_editor_chrome_initialized"
+const TOOLBAR_ICON_BY_NAME := {
+	"ButtonSave": "Save",
+	"ButtonBrowse": "ShowInFileSystem",
+	"ButtonReload": "Reload",
+	"ButtonAnalyze": "Search",
+	"ButtonRegenerate": "RandomNumberGenerator",
+	"ButtonMinimap": "GridMinimap",
+	"ButtonInputs": "GraphEdit",
+	"ButtonSettings": "Tools",
+}
+const TOOLBAR_TOOLTIP_BY_NAME := {
+	"ButtonSave": "Save the current FlowGraph resource",
+	"ButtonBrowse": "Reveal the saved graph resource in the FileSystem dock",
+	"ButtonReload": "Reload the current FlowGraph resource",
+	"ButtonAnalyze": "Inspect selected node raw data (A)",
+	"ButtonRegenerate": "Regenerate the graph output",
+	"ButtonMinimap": "Toggle the graph minimap.",
+	"ButtonInputs": "Edit graph inputs",
+	"ButtonSettings": "Open Flow editor settings",
+}
 
 
 class Refs:
 	var host: Control
 	var tab_bar: TabBar
 	var toolbar_hbox: HBoxContainer
+	var graph_edit: GraphEdit
 	var open_graph_button: Button
 	var expand_graph_button: Button
 
@@ -31,9 +52,12 @@ static func setup(refs: Refs) -> void:
 	if not refs.is_valid():
 		return
 	if refs.host.has_meta(INITIALIZED_META):
+		_attach_toolbar_to_graph_menu(refs)
+		apply_styles(refs)
 		apply_translations(refs)
 		return
 	enforce_vbox_order(refs)
+	_attach_toolbar_to_graph_menu(refs)
 	connect_signals(refs)
 	apply_styles(refs)
 	apply_translations(refs)
@@ -62,6 +86,35 @@ static func enforce_vbox_order(refs: Refs) -> void:
 			vbox.move_child(node, i)
 
 
+static func _attach_toolbar_to_graph_menu(refs: Refs) -> void:
+	if refs.graph_edit == null:
+		return
+	var graph_menu_hbox := refs.graph_edit.get_menu_hbox()
+	if graph_menu_hbox == null:
+		return
+	var graph_menu_panel := graph_menu_hbox.get_parent() as PanelContainer
+	if graph_menu_panel == null:
+		return
+	var editor_scale := EditorInterface.get_editor_scale() if Engine.is_editor_hint() else 1.0
+	refs.graph_edit.show_menu = true
+	graph_menu_hbox.visible = false
+	graph_menu_panel.visible = true
+	graph_menu_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	graph_menu_panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE, Control.PRESET_MODE_MINSIZE, int(10 * editor_scale))
+	if refs.toolbar_hbox.get_parent() != graph_menu_panel:
+		if refs.toolbar_hbox.get_parent() != null:
+			refs.toolbar_hbox.get_parent().remove_child(refs.toolbar_hbox)
+		graph_menu_panel.add_child(refs.toolbar_hbox)
+	refs.toolbar_hbox.visible = true
+	refs.toolbar_hbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	refs.toolbar_hbox.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var old_toolbar_container := refs.host.get_node_or_null("VBoxContainer/ScrollContainer") as ScrollContainer
+	if old_toolbar_container:
+		old_toolbar_container.visible = false
+		old_toolbar_container.custom_minimum_size = Vector2.ZERO
+		old_toolbar_container.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+
+
 static func connect_signals(refs: Refs) -> void:
 	var host := refs.host
 	if refs.tab_bar:
@@ -76,6 +129,7 @@ static func connect_signals(refs: Refs) -> void:
 	_connect_pressed(refs, "ButtonReload", host._on_button_reload_pressed)
 	_connect_pressed(refs, "ButtonAnalyze", host._on_button_analyze_pressed)
 	_connect_pressed(refs, "ButtonRegenerate", host._on_button_regenerate_pressed)
+	_connect_button_toggled(refs, "ButtonMinimap", host._on_button_minimap_toggled)
 	_connect_pressed(refs, "ButtonInputs", host._on_button_inputs_pressed)
 	_connect_pressed(refs, "ButtonSettings", host._on_button_settings_pressed)
 	_connect_toggled(refs, "AutoRegen", host._on_auto_regen_toggled)
@@ -93,6 +147,14 @@ static func _connect_pressed(refs: Refs, node_name: String, callback: Callable) 
 		button.pressed.connect(callback)
 
 
+static func _connect_button_toggled(refs: Refs, node_name: String, callback: Callable) -> void:
+	var button := refs.toolbar_hbox.get_node_or_null(node_name) as Button
+	if button:
+		button.toggle_mode = true
+		if not button.toggled.is_connected(callback):
+			button.toggled.connect(callback)
+
+
 static func _connect_toggled(refs: Refs, node_name: String, callback: Callable) -> void:
 	var checkbox := refs.toolbar_hbox.get_node_or_null(node_name) as CheckBox
 	if checkbox and not checkbox.toggled.is_connected(callback):
@@ -100,6 +162,9 @@ static func _connect_toggled(refs: Refs, node_name: String, callback: Callable) 
 
 
 static func apply_styles(refs: Refs) -> void:
+	if not refs.is_valid():
+		return
+	_attach_toolbar_to_graph_menu(refs)
 	var vbox := refs.host.get_node_or_null("VBoxContainer")
 	if vbox == null:
 		return
@@ -114,13 +179,8 @@ static func apply_styles(refs: Refs) -> void:
 		tab_panel.add_theme_stylebox_override("panel", tab_sb)
 	var toolbar_container := vbox.get_node_or_null("ScrollContainer") as ScrollContainer
 	if toolbar_container:
-		var sb_tb := StyleBoxFlat.new()
-		sb_tb.bg_color = Color("171a24")
-		sb_tb.content_margin_left = 8
-		sb_tb.content_margin_right = 8
-		sb_tb.content_margin_top = 6
-		sb_tb.content_margin_bottom = 6
-		toolbar_container.add_theme_stylebox_override("panel", sb_tb)
+		toolbar_container.visible = false
+	_style_graph_menu_toolbar(refs)
 	var status_panel := vbox.get_node_or_null("StatusPanel") as PanelContainer
 	if status_panel:
 		var status_sb := StyleBoxFlat.new()
@@ -134,14 +194,15 @@ static func apply_styles(refs: Refs) -> void:
 		status_panel.add_theme_stylebox_override("panel", status_sb)
 	for child in refs.toolbar_hbox.get_children():
 		if child is Button:
-			if child.name == "ButtonRegenerate":
-				_style_regenerate_button(child as Button)
+			var button := child as Button
+			if TOOLBAR_ICON_BY_NAME.has(button.name):
+				_style_toolbar_icon_button(button, String(TOOLBAR_ICON_BY_NAME[button.name]))
 			else:
-				_style_toolbar_button(child as Button)
+				_style_toolbar_button(button)
 	if refs.open_graph_button:
-		_style_toolbar_button(refs.open_graph_button)
+		_style_open_graph_button(refs.open_graph_button)
 	if refs.expand_graph_button:
-		_style_toolbar_button(refs.expand_graph_button)
+		_style_expand_graph_button(refs.expand_graph_button)
 
 
 static func apply_translations(refs: Refs) -> void:
@@ -149,16 +210,8 @@ static func apply_translations(refs: Refs) -> void:
 		return
 	FlowI18n.reload_locale_files()
 	var text_by_name := {
-		"ButtonAnalyze": "Analyze",
-		"ButtonReload": "Reload",
-		"ButtonInputs": "Inputs",
-		"ButtonSave": "Save Resource",
-		"ButtonBrowse": "Browse",
 		"AutoRegen": "Auto Generate",
 		"CheckColorNodes": "Color Nodes",
-		"ButtonRegenerate": "Regenerate",
-		"ButtonExpandGraph": "Expand",
-		"ButtonSettings": "Settings",
 	}
 	for node_name in text_by_name:
 		var control := _get_control(refs, node_name)
@@ -167,17 +220,22 @@ static func apply_translations(refs: Refs) -> void:
 		elif control is Label:
 			(control as Label).text = FlowI18n.t(String(text_by_name[node_name]))
 	var tooltip_by_name := {
-		"ButtonAnalyze": "Inspect selected node raw data (A)",
-		"ButtonBrowse": "Reveal the saved graph resource in the FileSystem dock",
 		"ButtonExpandGraph": "Float and Maximize Graph Panel",
 	}
+	for node_name in TOOLBAR_TOOLTIP_BY_NAME:
+		var control := _get_control(refs, node_name)
+		if control:
+			control.tooltip_text = FlowI18n.t(String(TOOLBAR_TOOLTIP_BY_NAME[node_name]))
 	for node_name in tooltip_by_name:
 		var control := _get_control(refs, node_name)
 		if control:
 			control.tooltip_text = FlowI18n.t(String(tooltip_by_name[node_name]))
 	if refs.open_graph_button:
-		refs.open_graph_button.text = "+"
+		refs.open_graph_button.text = ""
 		refs.open_graph_button.tooltip_text = FlowI18n.t("Open a FlowGraph resource")
+	if refs.expand_graph_button:
+		refs.expand_graph_button.text = ""
+		refs.expand_graph_button.tooltip_text = FlowI18n.t("Float and Maximize Graph Panel")
 
 
 static func _get_control(refs: Refs, node_name: String) -> Control:
@@ -213,6 +271,50 @@ static func _style_toolbar_button(btn: Button) -> void:
 	btn.add_theme_color_override("font_pressed_color", Color("a1a1aa"))
 
 
+static func _style_toolbar_icon_button(btn: Button, icon_name: String) -> void:
+	var editor_scale := EditorInterface.get_editor_scale() if Engine.is_editor_hint() else 1.0
+	btn.text = ""
+	btn.theme_type_variation = "FlatButton"
+	btn.focus_mode = Control.FOCUS_ACCESSIBILITY
+	btn.custom_minimum_size = Vector2(34, 32) * editor_scale
+	btn.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	btn.expand_icon = false
+	if Engine.is_editor_hint():
+		var editor_theme := EditorInterface.get_editor_theme()
+		if editor_theme != null and editor_theme.has_icon(icon_name, "EditorIcons"):
+			btn.icon = editor_theme.get_icon(icon_name, "EditorIcons")
+	if btn.name == "ButtonRegenerate":
+		_style_regenerate_button(btn)
+
+
+static func _style_open_graph_button(btn: Button) -> void:
+	var editor_scale := EditorInterface.get_editor_scale() if Engine.is_editor_hint() else 1.0
+	btn.text = ""
+	btn.theme_type_variation = "FlatMenuButton"
+	btn.focus_mode = Control.FOCUS_ACCESSIBILITY
+	btn.custom_minimum_size = Vector2(28, 28) * editor_scale
+	btn.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	btn.expand_icon = false
+	if Engine.is_editor_hint():
+		var editor_theme := EditorInterface.get_editor_theme()
+		if editor_theme != null and editor_theme.has_icon("Load", "EditorIcons"):
+			btn.icon = editor_theme.get_icon("Load", "EditorIcons")
+
+
+static func _style_expand_graph_button(btn: Button) -> void:
+	var editor_scale := EditorInterface.get_editor_scale() if Engine.is_editor_hint() else 1.0
+	btn.text = ""
+	btn.theme_type_variation = "BottomPanelButton"
+	btn.focus_mode = Control.FOCUS_NONE
+	btn.custom_minimum_size = Vector2(28, 28) * editor_scale
+	btn.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	btn.expand_icon = false
+	if Engine.is_editor_hint():
+		var editor_theme := EditorInterface.get_editor_theme()
+		if editor_theme != null and editor_theme.has_icon("ExpandBottomDock", "EditorIcons"):
+			btn.icon = editor_theme.get_icon("ExpandBottomDock", "EditorIcons")
+
+
 static func _style_regenerate_button(btn: Button) -> void:
 	var sb_normal := StyleBoxFlat.new()
 	sb_normal.bg_color = Color("1b1e28")
@@ -233,3 +335,26 @@ static func _style_regenerate_button(btn: Button) -> void:
 	btn.add_theme_color_override("font_color", Color("22d3ee"))
 	btn.add_theme_color_override("font_hover_color", Color("22d3ee"))
 	btn.add_theme_color_override("font_pressed_color", Color("22d3ee"))
+
+
+static func _style_graph_menu_toolbar(refs: Refs) -> void:
+	if refs.graph_edit == null:
+		return
+	var graph_menu_hbox := refs.graph_edit.get_menu_hbox()
+	if graph_menu_hbox == null:
+		return
+	var graph_menu_panel := graph_menu_hbox.get_parent() as PanelContainer
+	if graph_menu_panel == null:
+		return
+	var editor_scale := EditorInterface.get_editor_scale() if Engine.is_editor_hint() else 1.0
+	var toolbar_panel_style := StyleBoxFlat.new()
+	toolbar_panel_style.bg_color = Color(0.055, 0.06, 0.075, 0.82)
+	toolbar_panel_style.set_border_width_all(1)
+	toolbar_panel_style.border_color = Color(1.0, 1.0, 1.0, 0.08)
+	toolbar_panel_style.set_corner_radius_all(int(4 * editor_scale))
+	toolbar_panel_style.content_margin_left = 8 * editor_scale
+	toolbar_panel_style.content_margin_right = 8 * editor_scale
+	toolbar_panel_style.content_margin_top = 6 * editor_scale
+	toolbar_panel_style.content_margin_bottom = 6 * editor_scale
+	graph_menu_panel.add_theme_stylebox_override("panel", toolbar_panel_style)
+	refs.toolbar_hbox.add_theme_constant_override("separation", int(4 * editor_scale))

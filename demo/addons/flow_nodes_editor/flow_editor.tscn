@@ -23,10 +23,9 @@ layout_mode = 2
 theme_override_constants/separation = 8
 
 [node name="ButtonOpenGraph" type="Button" parent="VBoxContainer/TabBarPanel/TabBarRow"]
-custom_minimum_size = Vector2(28, 0)
+custom_minimum_size = Vector2(28, 28)
 layout_mode = 2
 tooltip_text = "Open a FlowGraph resource"
-text = "+"
 
 [node name="TabBar" type="TabBar" parent="VBoxContainer/TabBarPanel/TabBarRow"]
 layout_mode = 2
@@ -34,10 +33,11 @@ size_flags_horizontal = 3
 tab_close_display_policy = 1
 
 [node name="ButtonExpandGraph" type="Button" parent="VBoxContainer/TabBarPanel/TabBarRow"]
+custom_minimum_size = Vector2(28, 28)
 layout_mode = 2
-text = "Expand"
 
 [node name="ScrollContainer" type="ScrollContainer" parent="VBoxContainer"]
+visible = false
 layout_mode = 2
 size_flags_vertical = 0
 vertical_scroll_mode = 0
@@ -48,36 +48,41 @@ size_flags_horizontal = 3
 theme_override_constants/separation = 6
 
 [node name="ButtonSave" type="Button" parent="VBoxContainer/ScrollContainer/HBoxContainer"]
+custom_minimum_size = Vector2(34, 32)
 layout_mode = 2
-text = "Save Resource"
 
 [node name="ButtonBrowse" type="Button" parent="VBoxContainer/ScrollContainer/HBoxContainer"]
+custom_minimum_size = Vector2(34, 32)
 layout_mode = 2
-text = "Browse"
 
 [node name="ButtonReload" type="Button" parent="VBoxContainer/ScrollContainer/HBoxContainer"]
+custom_minimum_size = Vector2(34, 32)
 layout_mode = 2
-text = "Reload"
 
 [node name="ButtonAnalyze" type="Button" parent="VBoxContainer/ScrollContainer/HBoxContainer"]
+custom_minimum_size = Vector2(34, 32)
 layout_mode = 2
-text = "Analyze"
 
 [node name="ButtonRegenerate" type="Button" parent="VBoxContainer/ScrollContainer/HBoxContainer"]
+custom_minimum_size = Vector2(34, 32)
 layout_mode = 2
-text = "Regenerate"
 
 [node name="ToolbarSpacer" type="Control" parent="VBoxContainer/ScrollContainer/HBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="ButtonInputs" type="Button" parent="VBoxContainer/ScrollContainer/HBoxContainer"]
+[node name="ButtonMinimap" type="Button" parent="VBoxContainer/ScrollContainer/HBoxContainer"]
+custom_minimum_size = Vector2(34, 32)
 layout_mode = 2
-text = "Inputs"
+toggle_mode = true
+
+[node name="ButtonInputs" type="Button" parent="VBoxContainer/ScrollContainer/HBoxContainer"]
+custom_minimum_size = Vector2(34, 32)
+layout_mode = 2
 
 [node name="ButtonSettings" type="Button" parent="VBoxContainer/ScrollContainer/HBoxContainer"]
+custom_minimum_size = Vector2(34, 32)
 layout_mode = 2
-text = "Settings"
 
 [node name="AutoRegen" type="CheckBox" parent="VBoxContainer/ScrollContainer/HBoxContainer"]
 unique_name_in_owner = true

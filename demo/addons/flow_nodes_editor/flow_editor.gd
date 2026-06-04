@@ -1513,17 +1513,22 @@ func _ready():
 	_chrome_refs.host = self
 	_chrome_refs.tab_bar = tab_bar
 	_chrome_refs.toolbar_hbox = toolbar_hbox
+	_chrome_refs.graph_edit = gedit
 	_chrome_refs.open_graph_button = open_graph_button
 	_chrome_refs.expand_graph_button = expand_graph_button
 	FlowEditorChrome.setup(_chrome_refs)
+	_sync_minimap_button()
 	if not has_meta(EDITOR_DYNAMIC_UI_META):
 		_create_dynamic_editor_ui()
 		set_meta(EDITOR_DYNAMIC_UI_META, true)
 	else:
 		_refresh_dynamic_editor_ui()
-	%AutoRegen.button_pressed = auto_regen
-	if has_node("%CheckColorNodes"):
-		%CheckColorNodes.button_pressed = color_nodes
+	var auto_regen_checkbox := toolbar_hbox.get_node_or_null("AutoRegen") as CheckBox
+	if auto_regen_checkbox:
+		auto_regen_checkbox.button_pressed = auto_regen
+	var color_nodes_checkbox := toolbar_hbox.get_node_or_null("CheckColorNodes") as CheckBox
+	if color_nodes_checkbox:
+		color_nodes_checkbox.button_pressed = color_nodes
 	if not gedit.begin_node_move.is_connected(_on_graph_edit_begin_node_move):
 		gedit.begin_node_move.connect(_on_graph_edit_begin_node_move)
 	if not gedit.end_node_move.is_connected(_on_graph_edit_end_node_move):
@@ -1575,6 +1580,22 @@ func _on_button_expand_graph_pressed() -> void:
 
 func _on_button_settings_pressed() -> void:
 	_show_editor_settings_panel()
+
+
+func _on_button_minimap_toggled(toggled_on: bool) -> void:
+	if gedit == null:
+		return
+	gedit.minimap_enabled = toggled_on
+	_sync_minimap_button()
+
+
+func _sync_minimap_button() -> void:
+	if toolbar_hbox == null or gedit == null:
+		return
+	var minimap_button := toolbar_hbox.get_node_or_null("ButtonMinimap") as Button
+	if minimap_button and minimap_button.button_pressed != gedit.minimap_enabled:
+		minimap_button.set_pressed_no_signal(gedit.minimap_enabled)
+
 
 func _create_dynamic_editor_ui() -> void:
 	_ensure_custom_graph_grid()
@@ -1996,6 +2017,8 @@ func _notification(what: int) -> void:
 			data_inspector.refresh_localized_text()
 		if gedit and info:
 			update_status_bar()
+	elif what == NOTIFICATION_THEME_CHANGED and is_inside_tree() and _chrome_refs != null:
+		FlowEditorChrome.apply_styles(_chrome_refs)
 	elif what == NOTIFICATION_RESIZED and Engine.is_editor_hint():
 		_apply_bottom_dock_layout()
 
@@ -4830,8 +4853,9 @@ func _on_button_regenerate_pressed() -> void:
 
 func _on_auto_regen_toggled(toggled_on: bool) -> void:
 	auto_regen = toggled_on
-	if has_node("%AutoRegen") and %AutoRegen.button_pressed != toggled_on:
-		%AutoRegen.set_pressed_no_signal(toggled_on)
+	var auto_regen_checkbox := toolbar_hbox.get_node_or_null("AutoRegen") as CheckBox
+	if auto_regen_checkbox and auto_regen_checkbox.button_pressed != toggled_on:
+		auto_regen_checkbox.set_pressed_no_signal(toggled_on)
 	if not toggled_on:
 		regen_pending = false
 		regen_requested_while_running = false
@@ -5098,8 +5122,9 @@ func _on_graph_edit_end_node_move():
 
 func _on_color_nodes_toggled(toggled_on: bool) -> void:
 	color_nodes = toggled_on
-	if has_node("%CheckColorNodes") and %CheckColorNodes.button_pressed != toggled_on:
-		%CheckColorNodes.set_pressed_no_signal(toggled_on)
+	var color_nodes_checkbox := toolbar_hbox.get_node_or_null("CheckColorNodes") as CheckBox
+	if color_nodes_checkbox and color_nodes_checkbox.button_pressed != toggled_on:
+		color_nodes_checkbox.set_pressed_no_signal(toggled_on)
 	for node in getAllNodes():
 		node.refreshFromSettings()
 
