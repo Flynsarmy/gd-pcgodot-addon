@@ -78,6 +78,7 @@ static func create_native_property_editor(
 	editor.set_object_and_property(object, name)
 	editor.label = label
 	editor.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	editor.update_property()
 	return editor
 
 
