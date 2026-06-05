@@ -91,7 +91,7 @@ func _add_graph_parameters_control(
 ) -> void:
 	var editor := FlowGraphParametersEditor.new()
 	editor.setup(res, prop_name, title, include_value)
-	editor.property_edited.connect(_notify_native_graph_parameter_edited)
+	editor.property_edited.connect(_notify_native_graph_parameter_edited, CONNECT_DEFERRED)
 	add_custom_control(editor)
 
 func _notify_native_graph_parameter_edited(prop_name: String) -> void:

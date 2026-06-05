@@ -851,7 +851,7 @@ func _add_graph_parameters_control(
 	editor.setup(res, prop_name, title, include_value)
 	editor.property_edited.connect(func(edited_prop_name: String):
 		property_edited.emit(edited_prop_name)
-	)
+	, CONNECT_DEFERRED)
 	content_vbox.add_child(editor)
 
 func _populate_generic_resource_properties(res: Resource):
