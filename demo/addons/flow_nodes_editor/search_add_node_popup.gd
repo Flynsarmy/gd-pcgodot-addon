@@ -1,5 +1,5 @@
 @tool
-extends PopupPanel
+extends PopupMenu
 class_name SearchAddNodePopup
 
 signal node_selected(template_name: String)
@@ -8,277 +8,78 @@ signal input_selected(input_idx: int)
 signal output_selected(output_idx: int)
 
 const IDM_COLLAPSE_TO_SUBGRAPH = 200
+const IDM_NODE_BASE: int = 1000
+const IDM_INPUT_BASE: int = 200000
+const IDM_OUTPUT_BASE: int = 300000
 
-# Theme colors
-const ACCENT_COLOR = Color("22d3ee") # Cyan accent
-const HOVER_BG_COLOR = Color("2a3142")
-const SELECTED_BG_COLOR = Color("334155")
-const MENU_WIDTH = 230
-const MENU_MAX_HEIGHT = 320
-const ROW_HEIGHT = 24
-const SCROLL_ARROW_HEIGHT = 18
-const SUBMENU_HIDE_DELAY = 0.45
-const SUBMENU_KEEPALIVE_PADDING = 36
-const POPUP_KEEPALIVE_DISTANCE = 160.0
+var _id_to_item: Dictionary = {}
+var _submenus: Dictionary = {}
 
-var node_types = {}
-var inputs_list = []
-var outputs_list = []
-var has_selected_nodes = false
-var search_query = ""
-var current_category: String = ""
-
-var line_edit: LineEdit
-var scroll: ScrollContainer
-var list_vbox: VBoxContainer
-
-var all_items: Array[Dictionary] = [] # Array of { "type": "node"|"action"|"input", "key": Variant, "label": String, "category": String }
-var visible_items: Array[Dictionary] = []
-var highlighted_index: int = -1
-var recently_used: Array[String] = [] # Ordered list of recently used template names (most recent first)
-const MAX_RECENT = 8
-var expanded_categories := {}
-
-# Sub-panel popup
-var submenu_popup: PopupPanel
-var sub_list_vbox: VBoxContainer
-var sub_scroll: Control
-var sub_list_margin: MarginContainer
-var sub_scrollbar: VScrollBar
-var sub_scroll_up_btn: Button
-var sub_scroll_down_btn: Button
-var sub_has_scroll_overflow := false
-var sub_scroll_value := 0.0
-var sub_scroll_max := 0.0
-
-var active_hovered_category = ""
-var sub_panel_hide_timer: SceneTreeTimer = null
+const _CATEGORY_MAP := {
+	"Black Lantern": ["bl_style_lab_source", "bl_building_mass", "bl_zone_carver", "bl_room_splitter", "bl_decorator_master", "bl_tactical_decorator", "bl_floor_data_to_points", "bl_floor_data_contract_points", "bl_validate_floor_data", "bl_room_style_template", "bl_style_context_source", "bl_style_context_points", "bl_style_anchor_points", "bl_sync_grid_cell", "bl_points_to_style_spec", "bl_style_spec_to_points", "bl_style_spec_merge", "bl_style_metadata_spec", "bl_smart_prop_scatter", "bl_points_to_floor_data_props"],
+	"Control Flow": ["input", "output", "subgraph", "loop", "branch", "select", "select_multi", "switch", "get_loop_index"],
+	"Debug": ["debug", "print_string", "sanity_check"],
+	"Density": ["curve_remap_density", "density_remap", "distance_to_density"],
+	"Filter": ["filter", "filter_data_by_tag", "filter_data_by_attribute", "filter_data_by_type", "attribute_filter_range", "point_filter_range", "self_pruning", "substract", "difference", "intersection", "union"],
+	"Math": ["math_op", "expression", "reduce", "boolean"],
+	"Metadata": ["add_attribute", "attribute_rename", "remove_attribute", "add_tags", "delete_tags", "replace_tags", "make_vector", "compose_vector", "decompose_vector", "attribute_random", "match_and_set", "mutate_seed", "random_color", "point_to_attribute_set", "attribute_set_to_point", "load_data_table", "data_table_row_to_attribute_set", "load_pcg_data_asset"],
+	"Point Ops": ["bounds_modifier", "transform", "build_rotation_from_up", "combine_points", "duplicate_point", "point_offsets", "snap_to_grid", "point_neighborhood"],
+	"Sampler": ["copy", "copy_points", "sample_mesh", "point_from_mesh", "point_from_player_pawn", "points_from_scene", "points_from_tilemap", "points_from_gridmap", "select_points", "sample_spline", "surface_sampler", "volume_sampler", "texture_sampler", "points_from_imported_scene", "load_alembic_file", "navigation_region_sampler"],
+	"Spatial": ["create_spline", "distance", "ray_cast", "physics_overlap_query", "physics_shape_sweep", "clip_points_by_polygon", "clip_paths", "polygon_operation", "split_splines", "create_surface_from_spline", "create_surface_from_polygon"],
+	"Assets": ["assets", "spawn_meshes", "spawn_scenes", "spawn_nodes", "apply_on_actor", "points_from_imported_scene", "load_alembic_file", "load_pcg_data_asset"],
+	"Generators": ["grid", "noise", "relax", "dungeon_generator", "make_bounds", "grid_fill_bounds", "grid_connect_points", "grid_boundary"],
+	"Utility": ["sort", "merge", "merge_points", "partition", "scan_meshes", "scan_splines", "scan_nodes", "sequence_sample", "size", "get_points_count", "get_data_count", "get_entries_count", "transform_points"]
+}
 
 func _ready():
-	# Configure popup window/panel
-	title = ""
-	borderless = true
-	unresizable = true
-	transient = true
-	exclusive = false
-	min_size = Vector2i(MENU_WIDTH, 0)
-
-	var main_vbox = VBoxContainer.new()
-	main_vbox.custom_minimum_size.x = MENU_WIDTH
-	main_vbox.add_theme_constant_override("separation", 0)
-	add_child(main_vbox)
-	
-	# Header with LineEdit
-	var header_margin = MarginContainer.new()
-	header_margin.add_theme_constant_override("margin_left", 12)
-	header_margin.add_theme_constant_override("margin_right", 12)
-	header_margin.add_theme_constant_override("margin_top", 8)
-	header_margin.add_theme_constant_override("margin_bottom", 8)
-	main_vbox.add_child(header_margin)
-	
-	line_edit = LineEdit.new()
-	line_edit.placeholder_text = FlowI18n.t("Search nodes...")
-	line_edit.flat = true
-	line_edit.add_theme_font_size_override("font_size", 13)
-	line_edit.add_theme_color_override("font_color", Color("c8c8d4"))
-	line_edit.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
-	line_edit.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
-	line_edit.text_changed.connect(_on_search_text_changed)
-	line_edit.gui_input.connect(_on_line_edit_gui_input)
-	line_edit.mouse_entered.connect(func():
-		_hide_sub_panel_immediately()
-	)
-	header_margin.add_child(line_edit)
-	
-	# Separator
-	var sep = HSeparator.new()
-	var sep_style = StyleBoxLine.new()
-	sep_style.color = Color(1.0, 1.0, 1.0, 0.07)
-	sep_style.thickness = 1
-	sep.add_theme_stylebox_override("separator", sep_style)
-	main_vbox.add_child(sep)
-	
-	# Scroll area for items
-	scroll = ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(MENU_WIDTH, MENU_MAX_HEIGHT)
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	main_vbox.add_child(scroll)
-	
-	var list_margin = MarginContainer.new()
-	list_margin.custom_minimum_size.x = MENU_WIDTH
-	list_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list_margin.add_theme_constant_override("margin_left", 0)
-	list_margin.add_theme_constant_override("margin_right", 0)
-	list_margin.add_theme_constant_override("margin_top", 6)
-	list_margin.add_theme_constant_override("margin_bottom", 6)
-	scroll.add_child(list_margin)
-	
-	list_vbox = VBoxContainer.new()
-	list_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list_vbox.add_theme_constant_override("separation", 2)
-	list_margin.add_child(list_vbox)
-	
-	# Create separate Submenu Popup
-	submenu_popup = PopupPanel.new()
-	submenu_popup.title = ""
-	submenu_popup.borderless = true
-	submenu_popup.unresizable = true
-	submenu_popup.transient = true
-	submenu_popup.exclusive = false
-
-	submenu_popup.mouse_entered.connect(func():
-		_cancel_sub_panel_hide_timer()
-	)
-	submenu_popup.mouse_exited.connect(func():
-		_start_sub_panel_hide_timer()
-	)
-	add_child(submenu_popup) # submenu is owned by self
-	
-	# Sub-panel content
-	var sub_vbox = Control.new()
-	sub_vbox.custom_minimum_size.x = MENU_WIDTH
-	submenu_popup.add_child(sub_vbox)
-	
-	sub_scroll_up_btn = _create_scroll_arrow_button("▲")
-	sub_vbox.add_child(sub_scroll_up_btn)
-
-	# Sub-panel scroll area
-	sub_scroll = Control.new()
-	sub_scroll.clip_contents = true
-	sub_scroll.custom_minimum_size = Vector2(MENU_WIDTH, MENU_MAX_HEIGHT)
-	sub_scroll.gui_input.connect(_on_sub_scroll_gui_input)
-	sub_vbox.add_child(sub_scroll)
-	
-	sub_list_margin = MarginContainer.new()
-	sub_list_margin.custom_minimum_size.x = MENU_WIDTH
-	sub_list_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sub_list_margin.add_theme_constant_override("margin_left", 0)
-	sub_list_margin.add_theme_constant_override("margin_right", 0)
-	sub_list_margin.add_theme_constant_override("margin_top", 6)
-	sub_list_margin.add_theme_constant_override("margin_bottom", 6)
-	sub_scroll.add_child(sub_list_margin)
-	
-	sub_list_vbox = VBoxContainer.new()
-	sub_list_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sub_list_vbox.add_theme_constant_override("separation", 2)
-	sub_list_margin.add_child(sub_list_vbox)
-
-	sub_scrollbar = VScrollBar.new()
-	sub_scrollbar.focus_mode = Control.FOCUS_NONE
-	sub_scrollbar.value_changed.connect(func(value):
-		_set_sub_scroll_value(value)
-	)
-	sub_vbox.add_child(sub_scrollbar)
-	
-	sub_scroll_down_btn = _create_scroll_arrow_button("▼")
-	sub_vbox.add_child(sub_scroll_down_btn)
-	sub_vbox.move_child(sub_scroll_up_btn, sub_vbox.get_child_count() - 1)
-	_update_sub_scroll_arrows()
-
-	# Hide submenu when main hides, and clear any pending hide timer
-	popup_hide.connect(func():
-		sub_panel_hide_timer = null
-		submenu_popup.hide()
-	)
-	
-	# Grab focus on open
-	about_to_popup.connect(func():
-		line_edit.text = ""
-		search_query = ""
-		current_category = ""
-		_hide_sub_panel_immediately()
-		line_edit.grab_focus()
-		rebuild_list()
-	)
+	id_pressed.connect(_on_id_pressed)
 
 func setup(p_node_types: Dictionary, p_inputs: Array, p_outputs: Array, p_has_selected_nodes: bool, p_req_in: int = FlowData.DataType.Invalid, p_req_out: int = FlowData.DataType.Invalid):
-	node_types = p_node_types
-	inputs_list = p_inputs
-	outputs_list = p_outputs
-	has_selected_nodes = p_has_selected_nodes
-	
-	# Cache all items
-	all_items.clear()
-	
-	# 1. Action items (only when no drag connecting is happening)
-	if has_selected_nodes and p_req_in == FlowData.DataType.Invalid and p_req_out == FlowData.DataType.Invalid:
-		all_items.append({
-			"type": "action",
-			"key": IDM_COLLAPSE_TO_SUBGRAPH,
-			"label": "Collapse Selected to Subgraph",
-			"category": "Actions"
-		})
-		
-	# 2. Input/Output items (only when no drag connecting is happening)
-	if p_req_in == FlowData.DataType.Invalid and p_req_out == FlowData.DataType.Invalid:
-		for idx in range(inputs_list.size()):
-			var input_name = inputs_list[idx].name
-			all_items.append({
-				"type": "input",
-				"key": idx,
-				"label": FlowI18n.trf("Input: %s", [input_name]),
-				"category": "Inputs"
-			})
-		for idx in range(outputs_list.size()):
-			var output_name = outputs_list[idx].name
-			all_items.append({
-				"type": "output",
-				"key": idx,
-				"label": FlowI18n.trf("Output: %s", [output_name]),
-				"category": "Outputs"
-			})
-		
-	# 3. Node items
-	var cat_map = {
-		"Black Lantern": ["bl_style_lab_source", "bl_building_mass", "bl_zone_carver", "bl_room_splitter", "bl_decorator_master", "bl_tactical_decorator", "bl_floor_data_to_points", "bl_floor_data_contract_points", "bl_validate_floor_data", "bl_room_style_template", "bl_style_context_source", "bl_style_context_points", "bl_style_anchor_points", "bl_sync_grid_cell", "bl_points_to_style_spec", "bl_style_spec_to_points", "bl_style_spec_merge", "bl_style_metadata_spec", "bl_smart_prop_scatter", "bl_points_to_floor_data_props"],
-		"Control Flow": ["input", "output", "subgraph", "loop", "branch", "select", "select_multi", "switch", "get_loop_index"],
-		"Debug": ["debug", "print_string", "sanity_check"],
-		"Density": ["curve_remap_density", "density_remap", "distance_to_density"],
-		"Filter": ["filter", "filter_data_by_tag", "filter_data_by_attribute", "filter_data_by_type", "attribute_filter_range", "point_filter_range", "self_pruning", "substract", "difference", "intersection", "union"],
-		"Math": ["math_op", "expression", "reduce", "boolean"],
-		"Metadata": ["add_attribute", "attribute_rename", "remove_attribute", "add_tags", "delete_tags", "replace_tags", "make_vector", "compose_vector", "decompose_vector", "attribute_random", "match_and_set", "mutate_seed", "random_color", "point_to_attribute_set", "attribute_set_to_point", "load_data_table", "data_table_row_to_attribute_set", "load_pcg_data_asset"],
-		"Point Ops": ["bounds_modifier", "transform", "build_rotation_from_up", "combine_points", "duplicate_point", "point_offsets", "snap_to_grid", "point_neighborhood"],
-		"Sampler": ["copy", "copy_points", "sample_mesh", "point_from_mesh", "point_from_player_pawn", "points_from_scene", "points_from_tilemap", "points_from_gridmap", "select_points", "sample_spline", "surface_sampler", "volume_sampler", "texture_sampler", "points_from_imported_scene", "load_alembic_file", "navigation_region_sampler"],
-		"Spatial": ["create_spline", "distance", "ray_cast", "physics_overlap_query", "physics_shape_sweep", "clip_points_by_polygon", "clip_paths", "polygon_operation", "split_splines", "create_surface_from_spline", "create_surface_from_polygon"],
-		"Assets": ["assets", "spawn_meshes", "spawn_scenes", "spawn_nodes", "apply_on_actor", "points_from_imported_scene", "load_alembic_file", "load_pcg_data_asset"],
-		"Generators": ["grid", "noise", "relax", "dungeon_generator", "make_bounds", "grid_fill_bounds", "grid_connect_points", "grid_boundary"],
-		"Utility": ["sort", "merge", "merge_points", "partition", "scan_meshes", "scan_splines", "scan_nodes", "sequence_sample", "size", "get_points_count", "get_data_count", "get_entries_count", "transform_points"]
-	}
+	clear()
+	_id_to_item.clear()
+	_clear_submenus()
 
-	
-	var get_category = func(template_name: String) -> String:
-		var meta = node_types.get(template_name, {})
-		var meta_category := String(meta.get("category", "")).strip_edges()
-		if not meta_category.is_empty():
-			return meta_category
-		for cat in cat_map:
-			if template_name in cat_map[cat]:
-				return cat
-		return "Utility"
-		
-	# Gather templates
-	var templates = []
-	for key in node_types.keys():
-		var meta = node_types[key]
+	var next_node_id = IDM_NODE_BASE
+
+	if p_has_selected_nodes and p_req_in == FlowData.DataType.Invalid and p_req_out == FlowData.DataType.Invalid:
+		add_item("Collapse Selected to Subgraph", IDM_COLLAPSE_TO_SUBGRAPH)
+		_id_to_item[IDM_COLLAPSE_TO_SUBGRAPH] = {"type": "action", "key": IDM_COLLAPSE_TO_SUBGRAPH}
+
+	if p_req_in == FlowData.DataType.Invalid and p_req_out == FlowData.DataType.Invalid:
+		for idx in range(p_inputs.size()):
+			var input_name = p_inputs[idx].name
+			var input_id = IDM_INPUT_BASE + idx
+			add_item("Input: %s" % input_name, input_id)
+			_id_to_item[input_id] = {"type": "input", "key": idx}
+
+		for idx in range(p_outputs.size()):
+			var output_name = p_outputs[idx].name
+			var output_id = IDM_OUTPUT_BASE + idx
+			add_item("Output: %s" % output_name, output_id)
+			_id_to_item[output_id] = {"type": "output", "key": idx}
+
+	var templates: Array = []
+	for key in p_node_types.keys():
+		var meta = p_node_types[key]
 		if not meta.get("auto_register", true):
 			continue
-			
-		# Check port compatibility if drag connecting
+
 		if p_req_in != FlowData.DataType.Invalid or p_req_out != FlowData.DataType.Invalid:
 			var has_compatible_port = false
 			var ports = meta.ins if p_req_in != FlowData.DataType.Invalid else meta.outs
 			var required_type = p_req_in if p_req_in != FlowData.DataType.Invalid else p_req_out
 			for port in ports:
-				var port_type = port.get("data_type", 0)
-				if port_type == required_type:
+				if port.get("data_type", 0) == required_type:
 					has_compatible_port = true
 					break
 			if not has_compatible_port:
 				continue
-				
+
 		templates.append(key)
+
 	templates.sort()
-	
+	var items_by_category: Dictionary = {}
+
 	for key in templates:
 		var meta = node_types[key]
 		# Prefer an explicit "category" in the node's meta, fall back to cat_map (then "Utility")
@@ -315,7 +116,7 @@ func _item_match_score(item: Dictionary, query: String) -> int:
 	var cat_lower = String(item.category).to_lower()
 	var localized_cat_lower = _localized_category(item).to_lower()
 	var full_path = cat_lower + " " + localized_cat_lower + " " + label_lower + " " + localized_label_lower
-	
+
 	# Exact match in label = highest score
 	if label_lower == query or localized_label_lower == query:
 		return 100
@@ -531,10 +332,10 @@ func rebuild_list():
 	for child in list_vbox.get_children():
 		child.queue_free()
 		list_vbox.remove_child(child)
-		
+
 	visible_items.clear()
 	highlighted_index = -1
-	
+
 	var query = search_query.strip_edges().to_lower()
 	if query != "":
 		# Filter and score items, then sort by score descending
@@ -544,7 +345,7 @@ func rebuild_list():
 			if score > 0:
 				scored.append({"item": item, "score": score})
 		scored.sort_custom(func(a, b): return a.score > b.score)
-		
+
 		var item_index = 0
 		for entry in scored:
 			var item = entry.item
@@ -552,7 +353,7 @@ func rebuild_list():
 			# Show path: e.g. "Assets > Spawn Meshes"
 			if item.type == "node":
 				btn.text = _node_path_label(item)
-			
+
 			list_vbox.add_child(btn)
 			visible_items.append(_make_visible_item(item, btn))
 			item_index += 1
@@ -561,7 +362,7 @@ func rebuild_list():
 		var item_index = 0
 		current_category = ""
 		_hide_sub_panel_immediately()
-		
+
 		# Render Actions, Inputs & Outputs first (flat)
 		for item in all_items:
 			if item.type in ["action", "input", "output"]:
@@ -582,7 +383,7 @@ func rebuild_list():
 			header_margin.add_theme_constant_override("margin_bottom", 2)
 			header_margin.add_child(recent_header)
 			list_vbox.add_child(header_margin)
-			
+
 			for template_name in recently_used:
 				var recent_item = null
 				for item in all_items:
@@ -595,7 +396,7 @@ func rebuild_list():
 				list_vbox.add_child(btn)
 				visible_items.append(_make_visible_item(recent_item, btn))
 				item_index += 1
-			
+
 			# Small separator after recent
 			var sep = HSeparator.new()
 			var sep_style = StyleBoxLine.new()
@@ -625,7 +426,7 @@ func rebuild_list():
 			list_vbox.add_child(btn)
 			visible_items.append(_make_visible_item(cat_item, btn))
 			item_index += 1
-			
+
 			if expanded:
 				for item in all_items:
 					if item.type == "node" and item.category == cat:
@@ -636,7 +437,7 @@ func rebuild_list():
 
 	if visible_items.size() > 0:
 		_set_highlight(0)
-		
+
 	# Disable vertical scrollbar if content fits
 	var main_content_height = list_vbox.get_child_count() * ROW_HEIGHT + 12
 	var main_scroll_height = min(main_content_height, MENU_MAX_HEIGHT)
@@ -645,7 +446,7 @@ func rebuild_list():
 		scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	else:
 		scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-		
+
 	update_layout()
 
 func update_layout(hovered_button: Button = null):
@@ -660,7 +461,7 @@ func update_layout(hovered_button: Button = null):
 		var scrollbar_width = 14
 		var scroll_max_height = MENU_MAX_HEIGHT
 		var chosen_scroll_height = min(content_height, scroll_max_height)
-		
+
 		# Disable vertical scrollbar if content fits
 		var has_overflow = content_height > scroll_max_height
 		sub_has_scroll_overflow = has_overflow
@@ -700,18 +501,18 @@ func update_layout(hovered_button: Button = null):
 
 		submenu_popup.min_size = Vector2i(MENU_WIDTH, submenu_height)
 		submenu_popup.size = Vector2i(MENU_WIDTH, submenu_height)
-		
+
 		# Position submenu popup to the right of the main popup
 		var x = position.x + size.x + 8
 		var y = position.y
-		
+
 		if hovered_button and is_instance_valid(hovered_button):
 			# Calculate screen y of hovered button: window pos + button local y
 			y = position.y + int(hovered_button.global_position.y)
 			# Clamp y so the submenu doesn't go below the main popup's bottom
 			var max_y = position.y + size.y - submenu_popup.size.y
 			y = clamp(y, position.y, max(position.y, max_y))
-			
+
 		submenu_popup.position = Vector2i(x, y)
 		call_deferred("_update_sub_scroll_arrows")
 
@@ -724,7 +525,7 @@ func _set_highlight(index: int, scroll_to_item := true):
 			var old_color: Color = old_item.button_node.get_meta("menu_base_color", Color("c8c8d4"))
 			old_item.button_node.add_theme_color_override("font_color", old_color)
 			old_item.button_node.add_theme_stylebox_override("normal", _make_empty_button_style(old_indent))
-			
+
 	highlighted_index = index
 	if highlighted_index >= 0 and highlighted_index < visible_items.size():
 		var new_item = visible_items[highlighted_index]
@@ -740,7 +541,7 @@ func _ensure_visible(ctrl: Control):
 	var scroll_height = scroll.size.y
 	var ctrl_y = ctrl.position.y
 	var ctrl_height = ctrl.size.y
-	
+
 	if ctrl_y < scroll_y:
 		scroll.scroll_vertical = int(ctrl_y)
 	elif ctrl_y + ctrl_height > scroll_y + scroll_height:
@@ -821,87 +622,15 @@ func _on_line_edit_gui_input(event: InputEvent):
 				hide()
 				get_viewport().set_input_as_handled()
 
-func _show_sub_panel(category_name: String, category_button: Button):
-	_cancel_sub_panel_hide_timer()
-	
-	if active_hovered_category == category_name and submenu_popup.visible:
-		return # Already showing this category
-		
-	active_hovered_category = category_name
-	
-	# Clear sub list
-	for child in sub_list_vbox.get_children():
-		child.queue_free()
-		sub_list_vbox.remove_child(child)
-		
-	# Populate sub list buttons
-	var sub_items = all_items.filter(func(item):
-		return item.type == "node" and item.category == category_name
-	)
-	
-	for item in sub_items:
-		var btn = Button.new()
-		btn.text = _localized_label(item)
-		btn.tooltip_text = _localized_tooltip(item)
-		_style_menu_button(btn)
-		
-		btn.mouse_entered.connect(func():
-			_cancel_sub_panel_hide_timer()
-			btn.add_theme_color_override("font_color", Color.WHITE)
-			var sb_sel = StyleBoxFlat.new()
-			sb_sel.bg_color = Color(1.0, 1.0, 1.0, 0.08)
-			sb_sel.set_corner_radius_all(4)
-			sb_sel.content_margin_left = 12
-			sb_sel.content_margin_right = 12
-			sb_sel.content_margin_top = 4
-			sb_sel.content_margin_bottom = 4
-			btn.add_theme_stylebox_override("normal", sb_sel)
-		)
-		btn.mouse_exited.connect(func():
-			_start_sub_panel_hide_timer()
-			btn.add_theme_color_override("font_color", Color("c8c8d4"))
-			var sb_normal = StyleBoxEmpty.new()
-			sb_normal.content_margin_left = 12
-			sb_normal.content_margin_right = 12
-			sb_normal.content_margin_top = 4
-			sb_normal.content_margin_bottom = 4
-			btn.add_theme_stylebox_override("normal", sb_normal)
-		)
-		
-		btn.pressed.connect(func():
-			_select_item(item)
-		)
-		
-		sub_list_vbox.add_child(btn)
-		
-	_set_sub_scroll_value(0.0)
-	submenu_popup.visible = true
-	update_layout(category_button)
+func _get_category_for_template(template_name: String) -> String:
+	for category in _CATEGORY_MAP.keys():
+		if template_name in _CATEGORY_MAP[category]:
+			return String(category)
+	return "Utility"
 
-func _hide_sub_panel_immediately():
-	_cancel_sub_panel_hide_timer()
-	if submenu_popup.visible:
-		submenu_popup.visible = false
-		active_hovered_category = ""
-
-func _start_sub_panel_hide_timer():
-	_cancel_sub_panel_hide_timer()
-	sub_panel_hide_timer = get_tree().create_timer(SUBMENU_HIDE_DELAY)
-	sub_panel_hide_timer.timeout.connect(func():
-		if not is_instance_valid(self):
-			return
-		if sub_panel_hide_timer and not _is_mouse_near_submenu_stack():
-			_hide_sub_panel_immediately()
-		elif sub_panel_hide_timer:
-			_start_sub_panel_hide_timer()
-	)
-
-func _cancel_sub_panel_hide_timer():
-	if sub_panel_hide_timer:
-		sub_panel_hide_timer = null
-
-func _process(delta):
-	if not visible:
+func _on_id_pressed(id: int):
+	var item = _id_to_item.get(id, {})
+	if item.is_empty():
 		return
 
 	# Keyboard-driven flow: never auto-dismiss while the search box has focus.
@@ -912,16 +641,16 @@ func _process(delta):
 	# Bounding box calculation for automatic hide when mouse moves too far away
 	# We use screen-level coordinates from DisplayServer to avoid clamping issues outside the popup window
 	var mouse_screen_pos = DisplayServer.mouse_get_position()
-	
+
 	# Main popup screen rect
 	var main_rect = Rect2(position, size)
 	var dist = _dist_to_rect(mouse_screen_pos, main_rect)
-	
+
 	if submenu_popup.visible:
 		var sub_rect = Rect2(submenu_popup.position, submenu_popup.size)
 		var sub_dist = _dist_to_rect(mouse_screen_pos, sub_rect)
 		dist = min(dist, sub_dist)
-		
+
 	if dist > POPUP_KEEPALIVE_DISTANCE:
 		hide()
 

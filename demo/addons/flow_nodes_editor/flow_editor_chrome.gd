@@ -48,6 +48,15 @@ static func clear_initialized(host: Control) -> void:
 		host.remove_meta(INITIALIZED_META)
 
 
+static func _is_editing_host_scene(refs: Refs) -> bool:
+	if not Engine.is_editor_hint() or refs.host == null:
+		return false
+	var tree := refs.host.get_tree()
+	if tree == null:
+		return false
+	return tree.edited_scene_root == refs.host
+
+
 static func setup(refs: Refs) -> void:
 	if not refs.is_valid():
 		return
@@ -65,6 +74,8 @@ static func setup(refs: Refs) -> void:
 
 
 static func enforce_vbox_order(refs: Refs) -> void:
+	if _is_editing_host_scene(refs):
+		return
 	var vbox := refs.host.get_node_or_null("VBoxContainer")
 	if vbox == null:
 		return
@@ -87,6 +98,8 @@ static func enforce_vbox_order(refs: Refs) -> void:
 
 
 static func _attach_toolbar_to_graph_menu(refs: Refs) -> void:
+	if _is_editing_host_scene(refs):
+		return
 	if refs.graph_edit == null:
 		return
 	var graph_menu_hbox := refs.graph_edit.get_menu_hbox()
@@ -137,6 +150,8 @@ static func connect_signals(refs: Refs) -> void:
 	var inputs_button := refs.toolbar_hbox.get_node_or_null("ButtonInputs") as Button
 	if inputs_button:
 		inputs_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	print("button is")
+	print(refs.expand_graph_button)
 	if refs.expand_graph_button and not refs.expand_graph_button.pressed.is_connected(host._on_button_expand_graph_pressed):
 		refs.expand_graph_button.pressed.connect(host._on_button_expand_graph_pressed)
 
@@ -164,7 +179,9 @@ static func _connect_toggled(refs: Refs, node_name: String, callback: Callable) 
 static func apply_styles(refs: Refs) -> void:
 	if not refs.is_valid():
 		return
-	_attach_toolbar_to_graph_menu(refs)
+	var editing_host_scene := _is_editing_host_scene(refs)
+	if not editing_host_scene:
+		_attach_toolbar_to_graph_menu(refs)
 	var vbox := refs.host.get_node_or_null("VBoxContainer")
 	if vbox == null:
 		return
@@ -179,7 +196,7 @@ static func apply_styles(refs: Refs) -> void:
 		tab_panel.add_theme_stylebox_override("panel", tab_sb)
 	var toolbar_container := vbox.get_node_or_null("ScrollContainer") as ScrollContainer
 	if toolbar_container:
-		toolbar_container.visible = false
+		toolbar_container.visible = editing_host_scene
 	_style_graph_menu_toolbar(refs)
 	var status_panel := vbox.get_node_or_null("StatusPanel") as PanelContainer
 	if status_panel:

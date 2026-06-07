@@ -451,14 +451,14 @@ func setResourceToEdit( new_resource : FlowGraphResource, new_resource_owner : F
 		if current_resource:
 			saveResource()
 		return
-		
+
 	# Check if this resource is already open in a tab
 	var found_idx = -1
 	for i in range(open_tabs.size()):
 		if _is_same_graph_resource(open_tabs[i].resource, new_resource):
 			found_idx = i
 			break
-			
+
 	if found_idx != -1:
 		if active_tab_index == found_idx:
 			# If it's already active, update owner if a new one is selected
@@ -474,13 +474,13 @@ func setResourceToEdit( new_resource : FlowGraphResource, new_resource_owner : F
 		# Save current tab before opening a new one
 		if current_resource:
 			saveResource()
-			
+
 		var tab_title = "New Graph"
 		if new_resource.resource_path != "":
 			tab_title = new_resource.resource_path.get_file()
 		elif new_resource_owner:
 			tab_title = new_resource_owner.name
-			
+
 		open_tabs.append({
 			"resource": new_resource,
 			"owner": new_resource_owner,
@@ -493,44 +493,44 @@ func setResourceToEdit( new_resource : FlowGraphResource, new_resource_owner : F
 func _switch_to_tab(index: int, new_owner = null):
 	if index < 0 or index >= open_tabs.size():
 		return
-		
+
 	# Disconnect from old resource in_params_changed
 	if current_resource and current_resource.in_params_changed.is_connected(_on_in_params_changed):
 		current_resource.in_params_changed.disconnect(_on_in_params_changed)
-		
+
 	active_tab_index = index
-	
+
 	# Reload the resource from disk to pick up any external changes (agents, git, etc.)
 	var tab_resource = open_tabs[index].resource
 	var refreshed = _reload_resource_from_disk(tab_resource)
 	if refreshed != tab_resource:
 		open_tabs[index].resource = refreshed
 	current_resource = open_tabs[index].resource
-	
+
 	# Connect to new resource in_params_changed
 	if current_resource and not current_resource.in_params_changed.is_connected(_on_in_params_changed):
 		current_resource.in_params_changed.connect(_on_in_params_changed)
-	
+
 	if new_owner != null:
 		open_tabs[index].owner = new_owner
 	resource_owner = open_tabs[index].owner
-	
+
 	_clear_ui_nodes()
-	
+
 	scanAvailableNodesIfNeeded()
 	FlowNodeIO.loadFromResource( self )
 	repair_graph_integrity()
-	
+
 	ctx.graph = current_resource
 	ctx.owner = resource_owner
 	ctx.gedit_nodes_by_name = gedit_nodes_by_name
 	markAllNodesAsDirty()
 	queueRegen()
 	populatePopupInputsMenu()
-	
+
 	tab_bar.current_tab = index
 	_update_tab_titles()
-		
+
 	update_status_bar()
 
 func _on_tab_changed(index: int):
@@ -1094,7 +1094,7 @@ func _save_current_resource_to_path(path: String) -> bool:
 		return true
 	update_status_bar("Save failed: %s" % error_string(err))
 	return false
-	
+
 func _process(delta: float) -> void:
 	if node_registry_version != FlowNodeRegistry.get_version():
 		_on_node_registry_changed()
@@ -1102,12 +1102,12 @@ func _process(delta: float) -> void:
 	_sync_internal_inspector_mode_if_needed()
 	if not current_resource:
 		return
-		
+
 	if save_pending:
 		save_pending_delay -= delta
 		if save_pending_delay <= 0.0:
 			saveResource()
-		
+
 	# This is also trigered to true by plugin.gd:_on_history_changed
 	if regen_pending and not regen_running:
 		#print( "_process.regen_pending: %s" % [ regen_pending ])
@@ -1126,11 +1126,11 @@ func _process(delta: float) -> void:
 			node.setActivity( active_intensity )
 			live_active_nodes.append(node)
 		active_nodes = live_active_nodes
-			
+
 		if active_intensity == 0:
 			active_nodes.clear()
 		gedit.queue_redraw()
-		
+
 func getNewName( suffix : String ):
 	new_name_counter += 1
 	return "id_%04d_%s" % [ new_name_counter, suffix ]
@@ -1330,13 +1330,13 @@ func populatePopupMenu() -> PopupMenu:
 	min_id = 1000
 	max_id = min_id
 	menu_ids = {}
-	
+
 	var pm := PopupMenu.new()
 	add_child( pm )
 	pm.name = "MainMenu"
 	pm.clear()
 	pm.id_pressed.connect( _on_popup_menu_id_pressed )
-	
+
 	var required_input_type := FlowData.DataType.Invalid
 	var required_output_type := FlowData.DataType.Invalid
 	if auto_connect_from_node:
@@ -1362,7 +1362,7 @@ func populatePopupMenu() -> PopupMenu:
 		if getSelectedNodes().size() > 0:
 			pm.add_item( FlowI18n.t("Collapse Selected to Subgraph"), IDM_COLLAPSE_TO_SUBGRAPH )
 			pm.add_separator("", -1)
-			
+
 		if popup_menu_inputs:
 			popup_menu_inputs.queue_free()
 		popup_menu_inputs = PopupMenu.new()
@@ -1395,7 +1395,7 @@ func populatePopupMenu() -> PopupMenu:
 		"Generators": ["grid", "grid_fill_bounds", "grid_connect_points", "grid_boundary", "noise", "relax", "self_pruning", "dungeon_generator", "volume_sampler"],
 		"Utility": ["input", "output", "subgraph", "loop", "debug", "sort", "merge", "merge_points", "partition", "filter", "copy", "copy_points", "point_offsets", "transform_points", "points_from_scene", "point_from_player_pawn", "points_from_tilemap", "points_from_gridmap", "size", "get_points_count", "get_data_count", "get_entries_count", "get_loop_index"]
 	}
-	
+
 	# Helper to find category of a node template
 	var get_category = func(template_name: String, node_meta: Dictionary) -> String:
 		var meta_category := String(node_meta.get("category", "")).strip_edges()
@@ -1405,14 +1405,14 @@ func populatePopupMenu() -> PopupMenu:
 			if template_name in cat_map[cat]:
 				return cat
 		return "Utility"
-		
+
 	# Group node types by category
 	var categorized_keys = {}
 	for key in node_types.keys():
 		var node_meta = node_types[key]
 		if not node_meta.get("auto_register", true):
 			continue
-			
+
 		# Check port compatibility if drag connecting
 		if required_input_type != FlowData.DataType.Invalid or required_output_type != FlowData.DataType.Invalid:
 			var has_compatible_port = false
@@ -1425,16 +1425,16 @@ func populatePopupMenu() -> PopupMenu:
 					break
 			if not has_compatible_port:
 				continue
-				
+
 		var cat = get_category.call(key, node_meta)
 		if not categorized_keys.has(cat):
 			categorized_keys[cat] = []
 		categorized_keys[cat].append(key)
-		
+
 	# Sort categories alphabetically
 	var sorted_categories = categorized_keys.keys()
 	sorted_categories.sort()
-	
+
 	var category_idx := 0
 	for cat in sorted_categories:
 		var sub_pm = PopupMenu.new()
@@ -1443,13 +1443,13 @@ func populatePopupMenu() -> PopupMenu:
 		sub_pm.id_pressed.connect(_on_popup_menu_id_pressed)
 		pm.add_child(sub_pm)
 		pm.add_submenu_item( FlowI18n.tn(cat), sub_pm.name )
-		
+
 		# Sort node templates in this category alphabetically by title
 		var templates = categorized_keys[cat]
 		templates.sort_custom(func(a, b):
 			return node_types[a].title.nocasecmp_to(node_types[b].title) < 0
 		)
-		
+
 		var idx = 0
 		for key in templates:
 			var node_meta = node_types[key]
@@ -1459,21 +1459,21 @@ func populatePopupMenu() -> PopupMenu:
 			if node_meta.has("tooltip"):
 				sub_pm.set_item_tooltip(idx, FlowI18n.tn(String(node_meta.get("tooltip"))))
 			idx += 1
-			
+
 	return pm
 
 func _ready():
-	
+
 	if not Engine.is_editor_hint():
 		return
 
 	_load_editor_settings()
-		
+
 	ui_scale = 1.0
 	var dpi = DisplayServer.screen_get_dpi()
 	if dpi > 150:
 		ui_scale *= 2.0
-				
+
 	scanAvailableNodes()
 	_chrome_refs = FlowEditorChrome.Refs.new()
 	_chrome_refs.host = self
@@ -1489,12 +1489,13 @@ func _ready():
 		set_meta(EDITOR_DYNAMIC_UI_META, true)
 	else:
 		_refresh_dynamic_editor_ui()
-	var auto_regen_checkbox := toolbar_hbox.get_node_or_null("AutoRegen") as CheckBox
-	if auto_regen_checkbox:
-		auto_regen_checkbox.button_pressed = auto_regen
-	var color_nodes_checkbox := toolbar_hbox.get_node_or_null("CheckColorNodes") as CheckBox
-	if color_nodes_checkbox:
-		color_nodes_checkbox.button_pressed = color_nodes
+	if toolbar_hbox:
+		var auto_regen_checkbox := toolbar_hbox.get_node_or_null("AutoRegen") as CheckBox
+		if auto_regen_checkbox:
+			auto_regen_checkbox.button_pressed = auto_regen
+		var color_nodes_checkbox := toolbar_hbox.get_node_or_null("CheckColorNodes") as CheckBox
+		if color_nodes_checkbox:
+			color_nodes_checkbox.button_pressed = color_nodes
 	if not gedit.begin_node_move.is_connected(_on_graph_edit_begin_node_move):
 		gedit.begin_node_move.connect(_on_graph_edit_begin_node_move)
 	if not gedit.end_node_move.is_connected(_on_graph_edit_end_node_move):
@@ -1542,6 +1543,7 @@ func _apply_bottom_dock_layout() -> void:
 
 
 func _on_button_expand_graph_pressed() -> void:
+	print("clicked")
 	_float_graph_panel()
 
 func _on_button_settings_pressed() -> void:
@@ -1977,8 +1979,6 @@ func _focus_graph_panel_window():
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_TRANSLATION_CHANGED and is_inside_tree() and _chrome_refs != null:
 		FlowEditorChrome.apply_translations(_chrome_refs)
-		if search_add_node_popup:
-			search_add_node_popup.update_localized_text()
 		_refresh_node_translations()
 		if data_inspector and data_inspector.has_method("refresh_localized_text"):
 			data_inspector.refresh_localized_text()
@@ -1993,8 +1993,6 @@ func _on_node_translation_toggled(toggled_on: bool):
 	FlowI18n.set_node_translation_enabled(toggled_on)
 	if _chrome_refs != null:
 		FlowEditorChrome.apply_translations(_chrome_refs)
-	if search_add_node_popup:
-		search_add_node_popup.update_localized_text()
 	_refresh_node_translations()
 
 func _refresh_node_translations() -> void:
@@ -2018,7 +2016,7 @@ func _input(event: InputEvent):
 	var key_event := event as InputEventKey
 	if not key_event.pressed or key_event.echo:
 		return
-	
+
 	# Don't intercept when a text field has focus (LineEdit, TextEdit, SpinBox)
 	var focused = get_viewport().gui_get_focus_owner()
 	if focused is LineEdit or focused is TextEdit:
@@ -2028,7 +2026,7 @@ func _input(event: InputEvent):
 	# Only intercept when focus is within this editor's subtree
 	if focused and not is_ancestor_of(focused):
 		return
-	
+
 	match key_event.keycode:
 		KEY_D:
 			if key_event.alt_pressed:
@@ -2174,17 +2172,17 @@ func _find_nearest_connection(screen_pos: Vector2):
 	var connection_pos := screen_pos + gedit.scroll_offset
 	var best_conn = null
 	var best_dist := threshold
-	
+
 	for conn in gedit.connections:
 		var from_node = gedit_nodes_by_name.get(conn.from_node)
 		var to_node = gedit_nodes_by_name.get(conn.to_node)
 		if not from_node or not to_node:
 			continue
-		
+
 		# Match GraphEdit's connection layer coordinates.
 		var from_pos = (from_node.position_offset + from_node.get_output_port_position(conn.from_port)) * zoom
 		var to_pos = (to_node.position_offset + to_node.get_input_port_position(conn.to_port)) * zoom
-		
+
 		var line_points := gedit.get_connection_line(from_pos, to_pos)
 		if line_points.size() < 2:
 			continue
@@ -2194,7 +2192,7 @@ func _find_nearest_connection(screen_pos: Vector2):
 			if dist < best_dist:
 				best_dist = dist
 				best_conn = conn
-	
+
 	return best_conn
 
 ## Splices a reroute node into an existing connection at the given screen position
@@ -2313,7 +2311,7 @@ func _setup_inline_analyze_panel():
 	data_inspector = inline_inspector
 	if inline_inspector.has_method("set_flow_editor"):
 		inline_inspector.set_flow_editor(self)
-	
+
 	# Add resize handle to the top edge
 	_setup_analyze_resize_handle(panel)
 
@@ -2346,7 +2344,7 @@ func _setup_analyze_resize_handle(panel: Control):
 		handle.draw_line(Vector2(bar_x, cy + 1), Vector2(bar_x + bar_w, cy + 1), Color(1, 1, 1, 0.15), 1.0)
 	)
 	panel.add_child(handle)
-	
+
 	panel.gui_input.connect(func(event: InputEvent):
 		if not (event is InputEventMouseButton or event is InputEventMouseMotion):
 			return
@@ -2395,7 +2393,7 @@ func _refresh_status_counts() -> void:
 
 func update_status_bar(eval_msg: String = ""):
 	_refresh_status_counts()
-	
+
 	var text_parts = []
 	text_parts.append(FlowI18n.count(status_nodes_count, "nodes"))
 	text_parts.append(FlowI18n.count(status_wires_count, "connections"))
@@ -2407,7 +2405,7 @@ func update_status_bar(eval_msg: String = ""):
 			text_parts.append(summary)
 	elif current_resource:
 		text_parts.append(FlowI18n.t("Ready"))
-		
+
 	var status_text := " · ".join(text_parts)
 	if info.text != status_text:
 		info.text = status_text
@@ -2457,7 +2455,7 @@ func _refresh_graph_resource_parameter_edit(prop_name: String) -> bool:
 
 func notifyGraphParametersEdited(prop_name: String):
 	_refresh_graph_resource_parameter_edit(prop_name)
-	
+
 func onNodePropertyChanged( prop_name : String):
 	if _refresh_graph_resource_parameter_edit(prop_name):
 		return
@@ -2482,7 +2480,7 @@ func onNodePropertyChanged( prop_name : String):
 				refreshVariableNodes()
 		queueSave()
 		queueRegen()
-		
+
 # ------------------------------------------------
 func getSelectedFrames() -> Array[GraphFrame]:
 	var nodes : Array[GraphFrame] = []
@@ -2497,7 +2495,7 @@ func deleteFrames( frames : Array[GraphFrame] ):
 		_retire_graph_frame(node)
 	if not frames.is_empty():
 		_mark_status_counts_dirty()
-	
+
 # ------------------------------------------------
 func getSelectedNodes() -> Array[GraphNode]:
 	var nodes : Array[GraphNode] = []
@@ -2568,7 +2566,7 @@ func deleteGraphElementsAndRefresh( nodes : Array[GraphNode], frames : Array[Gra
 	inspected_node = null
 	_ensure_inspector()
 	queueRegen()
-	
+
 func deleteSelectedNodes():
 	var before_state = get_graph_snapshot()
 	var frames := getSelectedFrames()
@@ -2577,12 +2575,12 @@ func deleteSelectedNodes():
 		return
 	deleteGraphElementsAndRefresh( nodes, frames )
 	record_undo_action("Delete Nodes", before_state)
-	
+
 func queueSave():
 	_set_current_graph_dirty(true)
 	save_pending = true
 	save_pending_delay = SAVE_DEBOUNCE_SECONDS
-	
+
 func queueRegen():
 	#print( "queueRegen -> %s" % [ auto_regen ])
 	regen_pending = auto_regen
@@ -2615,7 +2613,7 @@ func _complete_regen_run(run_id: int) -> void:
 	if regen_requested_while_running:
 		regen_requested_while_running = false
 		regen_pending = auto_regen
-	
+
 func getRectOfNodes( nodes : Array[GraphNode] ):
 	var r : Rect2
 	var first : bool = true
@@ -2637,7 +2635,7 @@ func localToGraphCoords( local_coords : Vector2 ):
 
 func setOnOverInParam( row ):
 	popup_on_over_input = row
-	
+
 func refreshSignalsInputArgs( node ):
 	for child in node.get_children():
 		var row = child as FlowConnectorRow
@@ -2646,7 +2644,7 @@ func refreshSignalsInputArgs( node ):
 		if row.in_popup.get_connections().is_empty():
 			row.in_popup.connect( setOnOverInParam.bind( row ) )
 		if row.out_popup.get_connections().is_empty():
-			row.out_popup.connect( setOnOverInParam.bind( null ) )	
+			row.out_popup.connect( setOnOverInParam.bind( null ) )
 
 func addNodeFromTemplate( node_template, node_name : String, settings = null, initialize := true ):
 	print( "addNode %s (%s : %s)" % [ node_template, node_name, str(settings) ])
@@ -2656,9 +2654,9 @@ func addNodeFromTemplate( node_template, node_name : String, settings = null, in
 	if not meta:
 		push_error("node_type %s is not registered" % node_template)
 		print( node_types.keys() )
-		return null	
+		return null
 	#print( "Meta:", str(meta) )
-		
+
 	node.set_script(meta.factory)
 
 	node.node_template = node_template
@@ -2698,7 +2696,7 @@ func addNodeFromTemplate( node_template, node_name : String, settings = null, in
 		node.initFromScript()
 		node.refreshFromSettings()
 		refreshSignalsInputArgs( node )
-	
+
 	gedit.add_child(node)
 	gedit_nodes_by_name[ node.name ] = node
 	_mark_status_counts_dirty()
@@ -2740,13 +2738,13 @@ func _is_specific_output_node(node: FlowNodeBase) -> bool:
 	if node.node_template == "output":
 		return not _is_multi_port_flow_node(node)
 	return false
-	
+
 func canConnect( src : FlowNodeBase, src_port : int, dst : FlowNodeBase, dst_port : int ):
 	# Discard self connections and null values
 	if dst == src or src == null or dst == null:
 		push_warning( "canConnect. Invalid inputs: ", src, " <-> ", dst )
 		return false
-		
+
 	# Check Slot numbers
 	if dst_port >= dst.num_in_ports:
 		push_warning( "canConnect. dst_port(%d) >= num_in_ports(%d) dst:%s" % [ dst_port, dst.num_in_ports, dst.name ])
@@ -2754,7 +2752,7 @@ func canConnect( src : FlowNodeBase, src_port : int, dst : FlowNodeBase, dst_por
 	if src_port >= src.num_out_ports:
 		push_warning( "canConnect. src_port(%d) >= num_out_ports(%d) src:%s" % [ src_port, src.num_out_ports, src.name ])
 		return false
-		
+
 	var src_type = src.get_output_port_type( src_port )
 	var dst_type = dst.get_input_port_type( dst_port )
 	# When both ports have an explicit non-zero type they must match exactly.
@@ -2763,7 +2761,7 @@ func canConnect( src : FlowNodeBase, src_port : int, dst : FlowNodeBase, dst_por
 		if src_type != dst_type:
 			push_warning( "Node types do not match %d vs %d" % [ src_type, dst_type ])
 			return false
-		
+
 	#print( "canConnect OK %s:%d (%d)-> %s:%d (%d)" % [ src.name, src_port, src_type, dst.name, dst_port, dst_type ] )
 	return true
 
@@ -2867,7 +2865,7 @@ func _record_add_node_undo(
 	if not connections.is_empty():
 		markAllNodesAsDirty()
 		queueRegen()
-	
+
 func addNode( node_template, settings = null ):
 	ensureCurrentResource()
 	var selected_before := _get_selected_graph_element_names()
@@ -2889,7 +2887,7 @@ func addNode( node_template, settings = null ):
 				"to_port": 0
 			})
 		auto_connect_from_node = ""
-		
+
 	if auto_connect_to_node:
 		var target_node = gedit_nodes_by_name.get( auto_connect_to_node )
 		if canConnect( node, 0, target_node, auto_connect_to_port ):
@@ -2901,12 +2899,12 @@ func addNode( node_template, settings = null ):
 				"to_port": auto_connect_to_port
 			})
 		auto_connect_to_node = ""
-	
+
 	for prev_node in getSelectedNodes():
 		prev_node.selected = false
 	node.selected = true
 	node.visible = true
-	
+
 	var selected_after := _get_selected_graph_element_names()
 	var name_counter_after := new_name_counter
 	var node_data := _get_added_node_undo_data(node)
@@ -3200,7 +3198,7 @@ func addComment():
 	frame.tint_color_enabled = true
 	gedit.add_child(frame)
 	_mark_status_counts_dirty()
-	
+
 	for node in nodes:
 		_move_graph_node_to_frame(node.name, frame.name)
 	_fit_comment_frame_to_attached_nodes(frame)
@@ -3296,7 +3294,7 @@ func _on_graph_edit_node_selected(node):
 	inspected_node = node
 	if inspected_node:
 		_inspect_graph_element(inspected_node)
-		
+
 	update_status_bar()
 
 func registerAsParameter( name : String, data_type : FlowData.DataType ):
@@ -3366,13 +3364,13 @@ func syncGraphOutputs():
 			output_nodes.append(node)
 	var new_out_params : Array[GraphInputParameter] = []
 	var seen_names = {}
-	
+
 	if has_multi_port_output:
 		for p in current_resource.out_params:
 			if p and not seen_names.has(p.name):
 				seen_names[p.name] = true
 				new_out_params.append(p)
-				
+
 	for output_node in output_nodes:
 		var param_name = output_node.settings.name
 		if param_name == "" or seen_names.has(param_name):
@@ -3411,7 +3409,7 @@ func _on_in_popup_menu_pressed( id: int, row : FlowConnectorRow ) -> void:
 			# Connect the input to the node
 			_on_graph_edit_connection_request( new_input_node.name, 0, node.name, row.data.port )
 		populatePopupInputsMenu()
-		
+
 func _on_graph_edit_delete_nodes_request(node_names : Array):
 	print( "_on_graph_edit_delete_nodes_request", node_names )
 	var before_state = get_graph_snapshot()
@@ -3437,7 +3435,7 @@ func _on_graph_edit_popup_request(at_position):
 
 func _open_graph_context_menu(at_position: Vector2):
 	local_drop_position = at_position
-	
+
 	if popup_on_over_input:
 		var node = popup_on_over_input.getNode()
 		var pm := PopupMenu.new()
@@ -3461,7 +3459,7 @@ func _open_graph_context_menu(at_position: Vector2):
 		frame_menu.position = get_screen_position() + at_position + Vector2(20, 20)
 		frame_menu.popup()
 		return
-	
+
 	var required_input_type := FlowData.DataType.Invalid
 	var required_output_type := FlowData.DataType.Invalid
 	if auto_connect_from_node:
@@ -3486,12 +3484,12 @@ func _open_graph_context_menu(at_position: Vector2):
 		in_params = current_resource.in_params
 		if "out_params" in current_resource:
 			out_params = current_resource.out_params
-		
+
 	search_add_node_popup.setup(node_types, in_params, out_params, getSelectedNodes().size() > 0, required_input_type, required_output_type)
 	search_add_node_popup.position = get_screen_position() + at_position
 	search_add_node_popup.popup()
-	
-	
+
+
 func openAddMenu():
 	var pos = get_local_mouse_position()
 	_open_graph_context_menu( pos )
@@ -3532,32 +3530,32 @@ func collapse_selected_to_subgraph():
 	var selected_nodes = getSelectedNodes()
 	if selected_nodes.is_empty():
 		return
-		
+
 	# Determine unique path in same folder as current resource
 	var base_dir = "res://"
 	if current_resource and current_resource.resource_path != "":
 		base_dir = current_resource.resource_path.get_base_dir()
-		
+
 	var path = base_dir.path_join("subgraph_collapsed.tres")
 	var counter = 1
 	while ResourceLoader.exists(path):
 		path = base_dir.path_join("subgraph_collapsed_%d.tres" % counter)
 		counter += 1
-		
+
 	var before_state = get_graph_snapshot()
-	
+
 	var selected_node_names = {}
 	for node in selected_nodes:
 		selected_node_names[node.name] = true
-		
+
 	var internal_links = []
 	var input_boundary_list = []
 	var output_boundary_list = []
-	
+
 	for conn in gedit.connections:
 		var from_sel = selected_node_names.has(conn.from_node)
 		var to_sel = selected_node_names.has(conn.to_node)
-		
+
 		if from_sel and to_sel:
 			internal_links.append(conn)
 		elif not from_sel and to_sel:
@@ -3586,7 +3584,7 @@ func collapse_selected_to_subgraph():
 					"from_port": conn.from_port,
 					"targets": [{"to_node": conn.to_node, "to_port": conn.to_port}]
 				})
-				
+
 	# Calculate positions
 	var min_pos = Vector2(INF, INF)
 	var max_pos = Vector2(-INF, -INF)
@@ -3599,11 +3597,11 @@ func collapse_selected_to_subgraph():
 		max_pos.y = maxf(max_pos.y, pos.y + node.size.y / ui_scale)
 		avg_pos += node.position_offset
 	avg_pos /= selected_nodes.size()
-	
+
 	# Serialize selected nodes relative to min_pos
 	var subgraph_data = FlowNodeIO.nodes_as_dict(selected_nodes, [], self)
 	var parsed_min_pos = FlowNodeIO._parse_vector2(subgraph_data.get("min_pos", Vector2.ZERO))
-	
+
 	var links_clean = []
 	for link in internal_links:
 		links_clean.append({
@@ -3613,9 +3611,9 @@ func collapse_selected_to_subgraph():
 			"to_port": link.to_port
 		})
 	subgraph_data["links"] = links_clean
-	
+
 	var nodes_clean = subgraph_data.get("nodes", [])
-	
+
 	# Create input parameters and input nodes in the subgraph
 	var subgraph_in_params : Array[GraphInputParameter] = []
 	var input_idx = 0
@@ -3629,14 +3627,14 @@ func collapse_selected_to_subgraph():
 			if first_target.to_port < target_meta.ins.size():
 				port_label = target_meta.ins[first_target.to_port].get("label", "in")
 				data_type = target_meta.ins[first_target.to_port].get("data_type", FlowData.DataType.Float)
-				
+
 		var param_name = "in_" + target_node.name + "_" + port_label
-		
+
 		var param = GraphInputParameter.new()
 		param.name = param_name
 		param.data_type = data_type
 		subgraph_in_params.append(param)
-		
+
 		var input_node_name = "input_" + param_name
 		nodes_clean.append({
 			"position": Vector2(-250.0, input_idx * 150.0),
@@ -3649,7 +3647,7 @@ func collapse_selected_to_subgraph():
 				"data_type": data_type
 			}
 		})
-		
+
 		for target in item.targets:
 			subgraph_data["links"].append({
 				"from_node": input_node_name,
@@ -3657,11 +3655,11 @@ func collapse_selected_to_subgraph():
 				"to_node": target.to_node,
 				"to_port": target.to_port
 			})
-			
+
 		item["param_name"] = param_name
 		item["param_idx"] = input_idx
 		input_idx += 1
-		
+
 	# Create output nodes in the subgraph
 	var output_idx = 0
 	for item in output_boundary_list:
@@ -3673,7 +3671,7 @@ func collapse_selected_to_subgraph():
 			if item.from_port < source_meta.outs.size():
 				port_label = source_meta.outs[item.from_port].get("label", "out")
 				data_type = source_meta.outs[item.from_port].get("data_type", FlowData.DataType.Float)
-				
+
 		var out_name = "out_" + source_node.name + "_" + port_label
 		var output_node_name = "output_" + out_name
 		nodes_clean.append({
@@ -3687,20 +3685,20 @@ func collapse_selected_to_subgraph():
 				"data_type": data_type
 			}
 		})
-		
+
 		subgraph_data["links"].append({
 			"from_node": item.from_node,
 			"from_port": item.from_port,
 			"to_node": output_node_name,
 			"to_port": 0
 		})
-		
+
 		item["out_name"] = out_name
 		item["out_idx"] = output_idx
 		output_idx += 1
-		
+
 	subgraph_data["nodes"] = nodes_clean
-	
+
 	# Build output params from the output boundary (mirrors how in_params are built)
 	var subgraph_out_params : Array[GraphInputParameter] = []
 	for item in output_boundary_list:
@@ -3712,7 +3710,7 @@ func collapse_selected_to_subgraph():
 			if item.from_port < source_meta.outs.size():
 				param.data_type = source_meta.outs[item.from_port].get("data_type", FlowData.DataType.Float)
 		subgraph_out_params.append(param)
-	
+
 	# Save subgraph resource
 	var subgraph_res = FlowGraphResource.new()
 	subgraph_res.data = subgraph_data
@@ -3722,16 +3720,16 @@ func collapse_selected_to_subgraph():
 	if save_err != OK:
 		push_error("Failed to save collapsed subgraph to %s" % path)
 		return
-		
+
 	# Load the resource fresh from disk (bypass cache) to ensure we get the just-saved version
 	var loaded_subgraph = ResourceLoader.load(path, "Resource", ResourceLoader.CACHE_MODE_REPLACE)
-	
+
 	# Prepare parent graph state change
 	var after_nodes = []
 	for node in before_state.nodes:
 		if not selected_node_names.has(node.name):
 			after_nodes.append(node)
-			
+
 	var subgraph_node_name = getNewName("subgraph")
 	var before_min_pos = FlowNodeIO._parse_vector2(before_state.min_pos)
 	var subgraph_node_dict = {
@@ -4139,7 +4137,7 @@ func disconnect_nodes(from_node: StringName, from_port: int, to_node: StringName
 	var dst_node : FlowNodeBase = gedit_nodes_by_name.get( to_node )
 	if dst_node != null:
 		dst_node.dirty = true
-	
+
 func connect_nodes(from_node: StringName, from_port: int, to_node: StringName, to_port: int) -> void:
 	#print( "connect_nodes %s:%d -> %s:%d" % [ from_node, from_port, to_node, to_port ] )
 	var connection = {
@@ -4179,7 +4177,7 @@ func _on_graph_edit_connection_request(from_node: StringName, from_port: int, to
 	var dst_node = gedit_nodes_by_name.get( to_node )
 	if not canConnect( src_node, from_port, dst_node, to_port ):
 		return
-	
+
 	var conns_to_remove = []
 	# Check if the input does not allow multiple connections
 	var to_port_meta = dst_node.getMeta().ins[ to_port ] if to_port < dst_node.getMeta().ins.size() else {}
@@ -4192,14 +4190,14 @@ func _on_graph_edit_connection_request(from_node: StringName, from_port: int, to
 				"to_node": conn.to_node,
 				"to_port": conn.to_port
 			})
-	
+
 	var conns_to_add = [{
 		"from_node": from_node,
 		"from_port": from_port,
 		"to_node": to_node,
 		"to_port": to_port
 	}]
-	
+
 	var ur = undo_redo
 	if ur and current_resource:
 		var context = EditorInterface.get_edited_scene_root()
@@ -4211,13 +4209,13 @@ func _on_graph_edit_connection_request(from_node: StringName, from_port: int, to
 		ur.commit_action(true) # execute immediately
 	else:
 		apply_connections_change(conns_to_remove, conns_to_add)
-	
+
 func get_connected_sources(to_node: StringName, to_port: int) -> Array:
 	return input_sources.get([to_node, to_port], [])
-	
+
 func is_node_port_connected( to_node: StringName, to_port: int ) -> bool:
 	return not input_sources.get([to_node, to_port], []).is_empty()
-	
+
 func remove_input_source_target_connection( from_node: StringName, from_port: int, to_node : StringName, to_port : int ):
 	var key = [to_node, to_port]
 	if key in input_sources:
@@ -4226,12 +4224,12 @@ func remove_input_source_target_connection( from_node: StringName, from_port: in
 			input_sources[key].erase(source)
 		if input_sources[key].is_empty():
 			input_sources.erase(key)
-	
+
 func remove_all_inputs_to_target_connection( to_node : StringName, to_port : int ):
 	var key = [to_node, to_port]
 	if key in input_sources:
 		input_sources.erase(key)
-	
+
 func remove_all_inputs_to_source_connection( from_node : StringName, from_port : int ):
 	var conns_to_delete = []
 	for key in input_sources.keys():
@@ -4240,7 +4238,7 @@ func remove_all_inputs_to_source_connection( from_node : StringName, from_port :
 				conns_to_delete.append( [ src[0], src[1], key[0], key[1] ] )
 	for conn in conns_to_delete:
 		remove_input_source_target_connection( conn[0], conn[1], conn[2], conn[3])
-	
+
 func _on_graph_edit_disconnection_request(from_node: StringName, from_port: int, to_node: StringName, to_port: int) -> void:
 	var conns_to_remove = [{
 		"from_node": from_node,
@@ -4249,7 +4247,7 @@ func _on_graph_edit_disconnection_request(from_node: StringName, from_port: int,
 		"to_port": to_port
 	}]
 	var conns_to_add = []
-	
+
 	var ur = undo_redo
 	if ur and current_resource:
 		var context = EditorInterface.get_edited_scene_root()
@@ -4275,6 +4273,16 @@ func _on_graph_edit_connection_from_empty(to_node: StringName, to_port: int, rel
 	auto_connect_from_node = ""
 	local_drop_position = release_position
 	_on_graph_edit_popup_request( local_drop_position )
+
+func getDeps( node : FlowNodeBase ) -> Array[ FlowNodeBase ]:
+	var deps : Array[ FlowNodeBase ] = [ node ]
+	for conn in node.deps:
+		var dep_node = gedit_nodes_by_name.get( conn.from_node, null )
+		if not dep_node:
+			continue
+		var req_deps = getDeps( dep_node )
+		deps.append_array( req_deps )
+	return deps
 
 func getAllNodes() -> Array[ FlowNodeBase ]:
 	var nodes : Array[ FlowNodeBase ] = []
@@ -4468,7 +4476,7 @@ func refreshVariableNodes() -> void:
 			node.refreshVariableChoices()
 		node.dirty = true
 		node.refreshFromSettings()
-	
+
 func getEvalOrder() -> Array[FlowNodeBase]:
 	var node_list := getAllNodes()
 	var instances_by_name: Dictionary = {}
@@ -4495,17 +4503,17 @@ func removeGeneratedNodes():
 
 func getDirtyNodes() -> Array[ FlowNodeBase ]:
 	return getAllNodes().filter( func( node : FlowNodeBase ) -> bool:
-		return node.dirty 
+		return node.dirty
 	)
 
 func cacheConnections():
-	
+
 	# Clear all the arrays
 	var nodes := getAllNodes()
 	for node in nodes:
 		node.deps.clear()
 		node.dependants.clear()
-			
+
 	# Add each connection to left and right sides
 	for conn in gedit.connections:
 		var src_node = gedit_nodes_by_name.get( conn.from_node )
@@ -4564,27 +4572,27 @@ func expandDirtyFlagToDependants( node : FlowNodeBase ):
 func _begin_eval_graph() -> Dictionary:
 	ctx.eval_id += 1
 	ctx.variables.clear()
-	
+
 	var time_start = Time.get_ticks_usec()
-	
+
 	# print( "evalGraph %d starts from %s" % [ ctx.eval_id, resource_owner.name if resource_owner else "null" ] )
 	removeGeneratedNodes()
-	
+
 	cacheConnections()
 	# Generated instances are cleared globally; keep all final producers dirty so
 	# unaffected branches respawn instead of disappearing during analyze/debug.
 	markFinalNodesAsDirty()
-	
+
 	active_intensity = 1.0
 	active_nodes.clear()
-	
+
 	var dirty_nodes := getDirtyNodes()
 	for node in dirty_nodes:
 		expandDirtyFlagToDependants( node )
 	dirty_nodes = getDirtyNodes()
 	#for node in dirty_nodes:
 		#print( "Dirty: %s" % node.name )
-	
+
 	#print( "getEvalOrder..." )
 	return {
 		"time_start": time_start,
@@ -4643,7 +4651,7 @@ func _finish_eval_graph(eval_state: Dictionary) -> void:
 	regen_pending = false
 	#print( "regen_pending is now false")
 	_flush_data_inspector_refresh()
-	
+
 	var elapsed_usec = Time.get_ticks_usec() - eval_state.time_start
 	update_status_bar("%d evals in %.3f ms" % [ ctx.eval_id, elapsed_usec / 1000.0 ])
 	if dump_performance:
@@ -4788,7 +4796,7 @@ func _finish_button_browse_pressed() -> void:
 
 func markAllNodesAsDirty():
 	for node in getAllNodes():
-		node.dirty = true	
+		node.dirty = true
 
 func markFinalNodesAsDirty():
 	for node in getAllNodes():
@@ -4799,9 +4807,9 @@ func markFinalNodesAsDirty():
 
 func _on_button_regenerate_pressed() -> void:
 	#for key in input_sources.keys():
-		#print( key )	
+		#print( key )
 		#for val in input_sources[ key ]:
-			#print( "  %s" % [ val ] )	
+			#print( "  %s" % [ val ] )
 	#for conn in gedit.connections:
 		#print( conn )
 	dump_performance = true
@@ -4851,7 +4859,7 @@ func _on_graph_edit_paste_nodes_request():
 
 func _on_graph_edit_duplicate_nodes_request():
 	FlowNodeIO.duplicateSelecteddNodes( self )
-	
+
 func onEditorSceneChanged():
 	if suppress_next_editor_scene_changed:
 		suppress_next_editor_scene_changed = false
@@ -4885,7 +4893,7 @@ func _clear_editor_scene_changed_suppression() -> void:
 
 func create_node_network(net_description: Dictionary) -> Dictionary:
 	var created_nodes := {}
-	
+
 	# Create and configure nodes
 	if net_description.has("nodes"):
 		for n_desc in net_description["nodes"]:
@@ -4893,19 +4901,19 @@ func create_node_network(net_description: Dictionary) -> Dictionary:
 			var name_key = n_desc.get("name_key", "")
 			var settings_dict = n_desc.get("settings", {})
 			var pos = n_desc.get("position", Vector2.ZERO)
-			
+
 			var node = addNode(template)
 			if node:
 				if name_key != "":
 					created_nodes[name_key] = node
 				node.position_offset = pos
-				
+
 				# Set settings
 				for key in settings_dict:
 					node.settings.set(key, settings_dict[key])
 				node.settings.notify_property_list_changed()
 				node.refreshFromSettings()
-				
+
 	# Connect nodes
 	if net_description.has("links"):
 		for link_desc in net_description["links"]:
@@ -4913,13 +4921,13 @@ func create_node_network(net_description: Dictionary) -> Dictionary:
 			var from_port = link_desc.get("from_port", 0)
 			var to_key = link_desc.get("to", "")
 			var to_port = link_desc.get("to_port", 0)
-			
+
 			var from_node = created_nodes.get(from_key, null)
 			var to_node = created_nodes.get(to_key, null)
 			if from_node and to_node:
 				if canConnect(from_node, from_port, to_node, to_port):
 					connect_nodes(from_node.name, from_port, to_node.name, to_port)
-					
+
 	queueSave()
 	queueRegen()
 	return created_nodes
@@ -4931,7 +4939,7 @@ func get_graph_snapshot() -> Dictionary:
 	state["zoom"] = gedit.zoom
 	state["scroll_offset"] = [gedit.scroll_offset.x, gedit.scroll_offset.y]
 	state["new_name_counter"] = new_name_counter
-	
+
 	# Save absolute positions of all nodes and frames
 	var absolute_positions = {}
 	for node in all_nodes:
@@ -4939,7 +4947,7 @@ func get_graph_snapshot() -> Dictionary:
 	for frame in all_frames:
 		absolute_positions[frame.name] = [frame.position_offset.x, frame.position_offset.y]
 	state["absolute_positions"] = absolute_positions
-	
+
 	# Save selection
 	var selected_names = []
 	for node in getSelectedNodes():
@@ -4947,11 +4955,11 @@ func get_graph_snapshot() -> Dictionary:
 	for frame in getSelectedFrames():
 		selected_names.append(frame.name)
 	state["selected_names"] = selected_names
-	
+
 	# Save inspected node
 	if inspected_node:
 		state["inspected_node_name"] = inspected_node.name
-		
+
 	return state
 
 func get_graph_element_positions() -> Dictionary:
@@ -5000,7 +5008,7 @@ func load_graph_state(state: Dictionary):
 	if state.has("min_pos"):
 		var paste_offset = FlowNodeIO._parse_vector2(state.min_pos)
 		FlowNodeIO.create_nodes_from_dict(state, self, paste_offset)
-		
+
 	# Restore absolute positions exactly if present
 	if state.has("absolute_positions"):
 		var abs_pos = state.absolute_positions
@@ -5009,7 +5017,7 @@ func load_graph_state(state: Dictionary):
 			if node:
 				var pos_arr = abs_pos[name]
 				node.position_offset = Vector2(pos_arr[0], pos_arr[1])
-				
+
 	# Restore selection
 	if state.has("selected_names"):
 		for name in state.selected_names:
@@ -5017,7 +5025,7 @@ func load_graph_state(state: Dictionary):
 			if node:
 				if node is GraphNode or node is GraphFrame:
 					node.selected = true
-					
+
 	# Restore inspected node
 	if state.has("inspected_node_name"):
 		var node = gedit.get_node_or_null(NodePath(state.inspected_node_name))
@@ -5031,7 +5039,7 @@ func load_graph_state(state: Dictionary):
 					current_analyzed_node = node
 			elif node is GraphFrame:
 				_inspect_graph_element(node)
-				
+
 	queueSave()
 	queueRegen()
 
@@ -5045,12 +5053,12 @@ func record_undo_action(action_name: String, before_state: Dictionary):
 		ur.create_action(action_name, 0, context)
 		ur.add_do_method(self, "load_graph_state", after_state)
 		ur.add_undo_method(self, "load_graph_state", before_state)
-		
+
 		# Also record new_name_counter
 		current_resource.new_name_counter += 1
 		ur.add_do_property(current_resource, "new_name_counter", current_resource.new_name_counter)
 		ur.add_undo_property(current_resource, "new_name_counter", current_resource.new_name_counter - 1)
-		
+
 		ur.commit_action(false) # already executed
 		queueSave()
 
@@ -5079,7 +5087,7 @@ func _on_graph_edit_end_node_move():
 					if (child.position_offset - start_pos).length() > 0.01:
 						moved_nodes_before[child.name] = [start_pos.x, start_pos.y]
 						moved_nodes_after[child.name] = [child.position_offset.x, child.position_offset.y]
-						
+
 	if not moved_nodes_before.is_empty():
 		var ur = undo_redo
 		if ur and current_resource:
@@ -5092,7 +5100,7 @@ func _on_graph_edit_end_node_move():
 			_suppress_next_editor_scene_changed()
 			ur.commit_action(false) # already executed
 			queueSave()
-			
+
 	drag_start_snapshot = {}
 
 func _on_color_nodes_toggled(toggled_on: bool) -> void:
