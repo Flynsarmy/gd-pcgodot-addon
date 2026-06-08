@@ -186,17 +186,6 @@ static func apply_styles(refs: Refs) -> void:
 	if toolbar_container:
 		toolbar_container.visible = editing_host_scene
 	_style_graph_menu_toolbar(refs)
-	var status_panel := vbox.get_node_or_null("StatusPanel") as PanelContainer
-	if status_panel:
-		var status_sb := StyleBoxFlat.new()
-		status_sb.bg_color = Color("0a0c12")
-		status_sb.border_width_top = 1
-		status_sb.border_color = Color(1.0, 1.0, 1.0, 0.04)
-		status_sb.content_margin_left = 12
-		status_sb.content_margin_right = 12
-		status_sb.content_margin_top = 4
-		status_sb.content_margin_bottom = 4
-		status_panel.add_theme_stylebox_override("panel", status_sb)
 	for child in refs.toolbar_hbox.get_children():
 		if child is Button:
 			var button := child as Button

@@ -265,23 +265,6 @@ corner_radius_top_right = 3
 corner_radius_bottom_right = 3
 corner_radius_bottom_left = 3
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_6gp4o"]
-bg_color = Color(0.0627451, 0.078431375, 0.12156863, 1)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(1, 1, 1, 0.078431375)
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_t3l8f"]
-content_margin_left = 12.0
-content_margin_top = 4.0
-content_margin_right = 12.0
-content_margin_bottom = 4.0
-bg_color = Color(0.039215688, 0.047058824, 0.07058824, 1)
-border_width_top = 1
-border_color = Color(1, 1, 1, 0.04)
-
 [node name="FlowEditor" type="Control" unique_id=146156528]
 layout_mode = 3
 anchors_preset = 15
@@ -292,6 +275,8 @@ grow_vertical = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 script = ExtResource("1_0ji4f")
+metadata/flow_editor_chrome_initialized = true
+metadata/flow_editor_dynamic_ui = true
 
 [node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=1532759034]
 layout_mode = 0
@@ -488,7 +473,6 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_6gp4o")
 
 [node name="MarginContainer" type="MarginContainer" parent="VBoxContainer/VSplitContainer/InlineAnalyzePanel/AnalyzePanelBackground" unique_id=667933558]
 layout_mode = 2
@@ -504,13 +488,11 @@ layout_mode = 2
 [node name="StatusPanel" type="PanelContainer" parent="VBoxContainer" unique_id=1161383305]
 layout_mode = 2
 size_flags_vertical = 0
-theme_override_styles/panel = SubResource("StyleBoxFlat_t3l8f")
 
 [node name="FlowStatusLabel" type="Label" parent="VBoxContainer/StatusPanel" unique_id=1689010186]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.180392, 0.172549, 0.282353, 1)
-text = "0 nodes · 0 connections · Ready"
+text = "0 nodes · 0 connections · 1 evals in 0.022 ms"
 
 [connection signal="connection_from_empty" from="VBoxContainer/VSplitContainer/GraphEdit" to="." method="_on_graph_edit_connection_from_empty"]
 [connection signal="connection_request" from="VBoxContainer/VSplitContainer/GraphEdit" to="." method="_on_graph_edit_connection_request"]
