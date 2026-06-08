@@ -35,7 +35,6 @@ var retired_graph_frame_counter := 0
 var internal_inspector_floating_mode := false
 var make_inspector_visible : Callable
 var search_add_node_popup: SearchAddNodePopup
-var custom_graph_grid
 
 # This is the default graph-node instantiated, the script contains the logic
 var packed_node = preload("res://addons/flow_nodes_editor/node.tscn")
@@ -1641,8 +1640,6 @@ func _sync_minimap_button() -> void:
 
 
 func _create_dynamic_editor_ui() -> void:
-	_ensure_custom_graph_grid()
-	_apply_graph_grid_mode()
 	_setup_inline_analyze_panel()
 	_ensure_inspector()
 	_ensure_search_add_node_popup()
@@ -1650,8 +1647,6 @@ func _create_dynamic_editor_ui() -> void:
 
 func _refresh_dynamic_editor_ui() -> void:
 	inspector = null
-	_ensure_custom_graph_grid()
-	_apply_graph_grid_mode()
 	_ensure_inspector()
 	if search_add_node_popup == null or not is_instance_valid(search_add_node_popup):
 		_ensure_search_add_node_popup()
@@ -1680,20 +1675,6 @@ func _sync_tab_bar_from_open_tabs() -> void:
 	if tab_changed_was_connected:
 		tab_bar.tab_changed.connect(_on_tab_changed)
 	_update_tab_titles()
-
-func _ensure_custom_graph_grid() -> void:
-	if custom_graph_grid != null and is_instance_valid(custom_graph_grid):
-		custom_graph_grid.gedit = gedit
-		return
-	custom_graph_grid = gedit.get_node_or_null("CustomGraphGrid")
-	if custom_graph_grid == null:
-		custom_graph_grid = preload("res://addons/flow_nodes_editor/custom_grid.gd").new()
-		custom_graph_grid.name = "CustomGraphGrid"
-		custom_graph_grid.gedit = gedit
-		gedit.add_child(custom_graph_grid)
-		gedit.move_child(custom_graph_grid, 0)
-	else:
-		custom_graph_grid.gedit = gedit
 
 func _ensure_inspector() -> void:
 	var splitter := $VBoxContainer/VSplitContainer
@@ -1951,17 +1932,9 @@ func _save_editor_settings():
 	editor_settings.set_setting(EDITOR_SETTING_HIDE_RESOURCE_BUILTIN_ROWS, hide_resource_builtin_rows)
 	editor_settings.set_setting(EDITOR_SETTING_TRACK_EXTERNAL_EDITS, track_external_edits)
 
-func _apply_graph_grid_mode():
-	if not gedit:
-		return
-	gedit.show_grid = use_native_graph_grid
-	if custom_graph_grid and is_instance_valid(custom_graph_grid):
-		custom_graph_grid.visible = not use_native_graph_grid
-
 func _on_native_graph_grid_toggled(toggled_on: bool):
 	use_native_graph_grid = toggled_on
 	_save_editor_settings()
-	_apply_graph_grid_mode()
 
 func _is_graph_panel_floating() -> bool:
 	var current_window := get_window()

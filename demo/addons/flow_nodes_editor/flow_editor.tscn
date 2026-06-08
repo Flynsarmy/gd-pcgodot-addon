@@ -312,7 +312,10 @@ icon_alignment = 1
 [node name="TabBar" type="TabBar" parent="VBoxContainer/TabBarPanel/TabBarRow" unique_id=1129924425]
 layout_mode = 2
 size_flags_horizontal = 3
+current_tab = 0
 tab_close_display_policy = 1
+tab_count = 1
+tab_0/title = "Untitled / Unsaved"
 
 [node name="ButtonExpandGraph" type="Button" parent="VBoxContainer/TabBarPanel/TabBarRow" unique_id=339505406]
 custom_minimum_size = Vector2(56, 56)
@@ -457,7 +460,6 @@ size_flags_horizontal = 3
 size_flags_vertical = 3
 size_flags_stretch_ratio = 3.0
 theme_override_colors/activity = Color(1, 0.2, 0.2, 1)
-show_grid = false
 connection_lines_thickness = 2.0
 minimap_enabled = false
 show_zoom_buttons = false
@@ -473,7 +475,7 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_w4gf3")
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.180392, 0.172549, 0.282353, 1)
-text = "0 nodes · 0 connections"
+text = "0 nodes · 0 connections · Ready"
 
 [connection signal="connection_from_empty" from="VBoxContainer/VSplitContainer/GraphEdit" to="." method="_on_graph_edit_connection_from_empty"]
 [connection signal="connection_request" from="VBoxContainer/VSplitContainer/GraphEdit" to="." method="_on_graph_edit_connection_request"]
