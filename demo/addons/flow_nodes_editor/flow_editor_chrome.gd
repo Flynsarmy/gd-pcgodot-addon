@@ -15,16 +15,6 @@ const TOOLBAR_ICON_BY_NAME := {
 	"ButtonInputs": "GraphEdit",
 	"ButtonSettings": "Tools",
 }
-const TOOLBAR_TOOLTIP_BY_NAME := {
-	"ButtonSave": "Save the current FlowGraph resource",
-	"ButtonBrowse": "Reveal the saved graph resource in the FileSystem dock",
-	"ButtonReload": "Reload the current FlowGraph resource",
-	"ButtonAnalyze": "Inspect selected node raw data (A)",
-	"ButtonRegenerate": "Regenerate the graph output",
-	"ButtonMinimap": "Toggle the graph minimap.",
-	"ButtonInputs": "Edit graph inputs",
-	"ButtonSettings": "Open Flow editor settings",
-}
 
 
 class Refs:
@@ -150,8 +140,6 @@ static func connect_signals(refs: Refs) -> void:
 	var inputs_button := refs.toolbar_hbox.get_node_or_null("ButtonInputs") as Button
 	if inputs_button:
 		inputs_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	print("button is")
-	print(refs.expand_graph_button)
 	if refs.expand_graph_button and not refs.expand_graph_button.pressed.is_connected(host._on_button_expand_graph_pressed):
 		refs.expand_graph_button.pressed.connect(host._on_button_expand_graph_pressed)
 
