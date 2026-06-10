@@ -657,21 +657,20 @@ static func _add_virtual_variable_dependencies(node_list: Array) -> void:
 ## node_list entries must already have physical deps; call _add_virtual_variable_dependencies first when needed.
 static func build_execution_order(node_list: Array, instances_by_name: Dictionary) -> Array:
 	var ordered_nodes: Array = []
-	var topo_visited: Dictionary = {}
-	var topo_in_progress: Dictionary = {}
-	var visit_node = func(node, this_func) -> void:
-		if topo_visited.has(node.name):
+	var visited: Dictionary = {}
+	var visit_node = func(node, on_stack: Dictionary, this_func) -> void:
+		if visited.has(node.name):
 			return
-		if topo_in_progress.has(node.name):
+		if on_stack.has(node.name):
 			push_warning("Circular dependency detected involving node: " + node.name)
 			return
-		topo_in_progress[node.name] = true
+		on_stack[node.name] = true
 		for conn in node.deps:
 			var dep_node = instances_by_name.get(conn.from_node)
 			if dep_node:
-				this_func.call(dep_node, this_func)
-		topo_in_progress.erase(node.name)
-		topo_visited[node.name] = true
+				this_func.call(dep_node, on_stack, this_func)
+		on_stack.erase(node.name)
+		visited[node.name] = true
 		ordered_nodes.append(node)
 
 	var finals = node_list.filter(func(node):
@@ -680,7 +679,7 @@ static func build_execution_order(node_list: Array, instances_by_name: Dictionar
 		return _is_topo_final_root(node)
 	)
 	for node in finals:
-		visit_node.call(node, visit_node)
+		visit_node.call(node, {}, visit_node)
 	_stabilize_variable_execution_order(ordered_nodes)
 	_stabilize_consumer_input_order(ordered_nodes)
 	return ordered_nodes
