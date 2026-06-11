@@ -90,9 +90,12 @@ func initFromScript():
 		btn.text = "+ Add Input Parameter"
 		btn.alignment = HorizontalAlignment.HORIZONTAL_ALIGNMENT_CENTER
 		btn.add_theme_font_size_override("font_size", 10)
-		if not btn.pressed.is_connected(_on_add_input_pressed):
-			btn.pressed.connect(_on_add_input_pressed)
+		if not btn.pressed.is_connected(_on_add_input_pressed_deferred):
+			btn.pressed.connect(_on_add_input_pressed_deferred)
 		add_child(btn)
+
+func _on_add_input_pressed_deferred():
+	call_deferred("_on_add_input_pressed")
 
 func _on_add_input_pressed():
 	var editor = getEditor()
@@ -107,8 +110,11 @@ func _on_add_input_pressed():
 		new_input.name = uname
 		new_input.data_type = FlowData.DataType.Float
 		editor.current_resource.in_params.append( new_input )
-		editor.current_resource.in_params_changed.emit()
-		editor.queueSave()
+		if editor.has_method("notifyGraphParametersEdited"):
+			editor.call_deferred("notifyGraphParametersEdited", "in_params")
+		else:
+			editor.current_resource.in_params_changed.emit()
+			editor.call_deferred("queueSave")
 
 func _has_in_param_named(res, uname: String) -> bool:
 	for param in res.in_params:
@@ -145,7 +151,7 @@ func execute( ctx : FlowData.EvaluationContext ):
 					new_value = ctx.owner.args[ param.name ]
 			var container = output.streams[ param.name ].container
 			container.resize( 1 )
-			container[0] = new_value
+			FlowData.Data.writeValue( container, 0, new_value, param.data_type )
 			set_output( i, output )
 	else:
 		if ctx.graph.in_params.size() == 0:
@@ -181,7 +187,7 @@ func execute( ctx : FlowData.EvaluationContext ):
 
 		var container =	output.streams[ settings.name ].container
 		container.resize( 1 )
-		container[0] = new_value
+		FlowData.Data.writeValue( container, 0, new_value, input.data_type )
 			
 		set_output( 0, output )
 

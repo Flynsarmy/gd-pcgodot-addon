@@ -161,7 +161,8 @@ func execute( ctx : FlowData.EvaluationContext ):
 				input_idx += 1
 				
 		var FlowNodeIOClass = load("res://addons/flow_nodes_editor/flow_nodes_io.gd")
-		var outputs = FlowNodeIOClass.evaluate_graph(settings.graph, input_data_map, ctx)
+		var child_depth := int(ctx.runtime_params.get("__eval_depth", 0)) + 1
+		var outputs = FlowNodeIOClass.evaluate_graph(settings.graph, input_data_map, ctx, {}, child_depth)
 		
 		var result_data = outputs.get(settings.output_attribute_name, null)
 		if result_data == null:

@@ -109,13 +109,14 @@ func execute( ctx : FlowData.EvaluationContext ):
 					var container = override_data.addStream(param.name, param.data_type)
 					if container != null:
 						container.resize(1)
-						container[0] = override_val
+						FlowData.Data.writeValue(container, 0, override_val, param.data_type)
 					input_data_map[param.name] = override_data
 					_last_input_data_map[param.name] = override_data
 				# Priority 3: Graph default (handled by the evaluator's input node)
 	
 	var FlowNodeIOClass = load("res://addons/flow_nodes_editor/flow_nodes_io.gd")
-	var outputs = FlowNodeIOClass.evaluate_graph(settings.graph, input_data_map, ctx)
+	var child_depth := int(ctx.runtime_params.get("__eval_depth", 0)) + 1
+	var outputs = FlowNodeIOClass.evaluate_graph(settings.graph, input_data_map, ctx, {}, child_depth)
 	
 	var meta = getMeta()
 	var missing_outputs := PackedStringArray()

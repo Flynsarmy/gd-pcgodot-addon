@@ -10,9 +10,9 @@ signal output_selected(output_idx: int)
 const IDM_COLLAPSE_TO_SUBGRAPH = 200
 
 # Theme colors
-const BG_COLOR = Color("1b1e28")
-const BORDER_COLOR = Color("252836")
 const ACCENT_COLOR = Color("22d3ee") # Cyan accent
+const HOVER_BG_COLOR = Color("2a3142")
+const SELECTED_BG_COLOR = Color("334155")
 const MENU_WIDTH = 230
 const MENU_MAX_HEIGHT = 320
 const ROW_HEIGHT = 24
@@ -32,11 +32,12 @@ var line_edit: LineEdit
 var scroll: ScrollContainer
 var list_vbox: VBoxContainer
 
-var all_items: Array[Dictionary] = [] # Array of { "type": "node"|"action"|"input", "key": Variant, "label": String, "category": String, "button_node": Button }
+var all_items: Array[Dictionary] = [] # Array of { "type": "node"|"action"|"input", "key": Variant, "label": String, "category": String }
 var visible_items: Array[Dictionary] = []
 var highlighted_index: int = -1
 var recently_used: Array[String] = [] # Ordered list of recently used template names (most recent first)
 const MAX_RECENT = 8
+var expanded_categories := {}
 
 # Sub-panel popup
 var submenu_popup: PopupPanel
@@ -52,8 +53,6 @@ var sub_scroll_max := 0.0
 
 var active_hovered_category = ""
 var sub_panel_hide_timer: SceneTreeTimer = null
-var main_sb: StyleBoxFlat
-var sub_sb: StyleBoxFlat
 
 func _ready():
 	# Configure popup window/panel
@@ -64,14 +63,6 @@ func _ready():
 	exclusive = false
 	min_size = Vector2i(MENU_WIDTH, 0)
 
-	# Apply PanelContainer style to self
-	main_sb = StyleBoxFlat.new()
-	main_sb.bg_color = BG_COLOR
-	main_sb.set_border_width_all(1)
-	main_sb.border_color = Color(1.0, 1.0, 1.0, 0.1)
-	main_sb.set_corner_radius_all(6)
-	add_theme_stylebox_override("panel", main_sb)
-	
 	var main_vbox = VBoxContainer.new()
 	main_vbox.custom_minimum_size.x = MENU_WIDTH
 	main_vbox.add_theme_constant_override("separation", 0)
@@ -86,7 +77,7 @@ func _ready():
 	main_vbox.add_child(header_margin)
 	
 	line_edit = LineEdit.new()
-	line_edit.placeholder_text = "Search nodes..."
+	line_edit.placeholder_text = FlowI18n.t("Search nodes...")
 	line_edit.flat = true
 	line_edit.add_theme_font_size_override("font_size", 13)
 	line_edit.add_theme_color_override("font_color", Color("c8c8d4"))
@@ -134,14 +125,7 @@ func _ready():
 	submenu_popup.unresizable = true
 	submenu_popup.transient = true
 	submenu_popup.exclusive = false
-	
-	sub_sb = StyleBoxFlat.new()
-	sub_sb.bg_color = BG_COLOR
-	sub_sb.set_border_width_all(1)
-	sub_sb.border_color = Color(1.0, 1.0, 1.0, 0.1)
-	sub_sb.set_corner_radius_all(6)
-	submenu_popup.add_theme_stylebox_override("panel", sub_sb)
-	
+
 	submenu_popup.mouse_entered.connect(func():
 		_cancel_sub_panel_hide_timer()
 	)
@@ -232,7 +216,7 @@ func setup(p_node_types: Dictionary, p_inputs: Array, p_outputs: Array, p_has_se
 			all_items.append({
 				"type": "input",
 				"key": idx,
-				"label": "Input: " + input_name,
+				"label": FlowI18n.trf("Input: %s", [input_name]),
 				"category": "Inputs"
 			})
 		for idx in range(outputs_list.size()):
@@ -240,7 +224,7 @@ func setup(p_node_types: Dictionary, p_inputs: Array, p_outputs: Array, p_has_se
 			all_items.append({
 				"type": "output",
 				"key": idx,
-				"label": "Output: " + output_name,
+				"label": FlowI18n.trf("Output: %s", [output_name]),
 				"category": "Outputs"
 			})
 		
@@ -263,6 +247,10 @@ func setup(p_node_types: Dictionary, p_inputs: Array, p_outputs: Array, p_has_se
 
 	
 	var get_category = func(template_name: String) -> String:
+		var meta = node_types.get(template_name, {})
+		var meta_category := String(meta.get("category", "")).strip_edges()
+		if not meta_category.is_empty():
+			return meta_category
 		for cat in cat_map:
 			if template_name in cat_map[cat]:
 				return cat
@@ -302,24 +290,36 @@ func setup(p_node_types: Dictionary, p_inputs: Array, p_outputs: Array, p_has_se
 			"tooltip": meta.get("tooltip", "")
 		})
 
+func _notification(what: int):
+	if what == NOTIFICATION_TRANSLATION_CHANGED and is_inside_tree():
+		update_localized_text()
+
+func update_localized_text():
+	if line_edit:
+		line_edit.placeholder_text = FlowI18n.t("Search nodes...")
+	if list_vbox:
+		rebuild_list()
+
 func _item_matches_query(item: Dictionary, query: String) -> bool:
 	return _item_match_score(item, query) > 0
 
 ## Scores how well an item matches the query. Higher = better. 0 = no match.
 ## Supports fuzzy token-based matching: "pt neigh" matches "Point Neighborhood".
 func _item_match_score(item: Dictionary, query: String) -> int:
-	var label_lower = item.label.to_lower()
-	var cat_lower = item.category.to_lower()
-	var full_path = cat_lower + " " + label_lower
+	var label_lower = String(item.label).to_lower()
+	var localized_label_lower = _localized_label(item).to_lower()
+	var cat_lower = String(item.category).to_lower()
+	var localized_cat_lower = _localized_category(item).to_lower()
+	var full_path = cat_lower + " " + localized_cat_lower + " " + label_lower + " " + localized_label_lower
 	
 	# Exact match in label = highest score
-	if label_lower == query:
+	if label_lower == query or localized_label_lower == query:
 		return 100
 	# Starts with = high score
-	if label_lower.begins_with(query):
+	if label_lower.begins_with(query) or localized_label_lower.begins_with(query):
 		return 80
 	# Contains full query = good score
-	if label_lower.contains(query):
+	if label_lower.contains(query) or localized_label_lower.contains(query):
 		return 60
 	if full_path.contains(query):
 		return 50
@@ -344,6 +344,28 @@ func _item_match_score(item: Dictionary, query: String) -> int:
 		if all_match:
 			return 30
 	return 0
+
+func _localized_label(item: Dictionary) -> String:
+	if item.type == "node":
+		return FlowI18n.tn(String(item.label))
+	return FlowI18n.t(String(item.label))
+
+func _localized_category(item: Dictionary) -> String:
+	if item.type == "node":
+		return FlowI18n.tn(String(item.category))
+	return FlowI18n.t(String(item.category))
+
+func _localized_node_category(category_name: String) -> String:
+	return FlowI18n.tn(category_name)
+
+func _localized_tooltip(item: Dictionary) -> String:
+	var tooltip := String(item.get("tooltip", ""))
+	if item.type == "node":
+		return FlowI18n.tn(tooltip)
+	return FlowI18n.t(tooltip)
+
+func _node_path_label(item: Dictionary) -> String:
+	return "%s > %s" % [_localized_category(item), _localized_label(item)]
 
 func _create_scroll_arrow_button(label: String) -> Button:
 	var btn = Button.new()
@@ -395,36 +417,90 @@ func _update_sub_scroll_arrows():
 	sub_scroll_up_btn.disabled = false
 	sub_scroll_down_btn.disabled = false
 
-func _style_menu_button(btn: Button):
-	btn.alignment = HorizontalAlignment.HORIZONTAL_ALIGNMENT_LEFT
-	btn.flat = true
-	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	btn.add_theme_font_size_override("font_size", 11)
-	btn.add_theme_color_override("font_color", Color("c8c8d4"))
-	btn.add_theme_color_override("font_hover_color", Color.WHITE)
-	
-	var font_to_use = null
+func _make_button_style(bg_color: Color, indent: int) -> StyleBoxFlat:
+	var style = StyleBoxFlat.new()
+	style.bg_color = bg_color
+	style.set_corner_radius_all(4)
+	style.content_margin_left = indent
+	style.content_margin_right = 12
+	style.content_margin_top = 4
+	style.content_margin_bottom = 4
+	return style
+
+func _make_empty_button_style(indent: int) -> StyleBoxEmpty:
+	var style = StyleBoxEmpty.new()
+	style.content_margin_left = indent
+	style.content_margin_right = 12
+	style.content_margin_top = 4
+	style.content_margin_bottom = 4
+	return style
+
+func _get_menu_font(bold := false):
+	if bold and has_theme_font("bold", "EditorFonts"):
+		return get_theme_font("bold", "EditorFonts")
 	if has_theme_font("main", "EditorFonts"):
-		font_to_use = get_theme_font("main", "EditorFonts")
+		return get_theme_font("main", "EditorFonts")
+	return null
+
+func _style_menu_button(btn: Button, indent := 12, bold := false, base_color := Color("c8c8d4")):
+	btn.alignment = HorizontalAlignment.HORIZONTAL_ALIGNMENT_LEFT
+	btn.flat = false
+	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn.set_meta("menu_indent", indent)
+	btn.set_meta("menu_base_color", base_color)
+	btn.add_theme_font_size_override("font_size", 12 if bold else 11)
+	btn.add_theme_color_override("font_color", base_color)
+	btn.add_theme_color_override("font_hover_color", Color.WHITE)
+
+	var font_to_use = _get_menu_font(bold)
 	if font_to_use:
 		btn.add_theme_font_override("font", font_to_use)
-		
-	var sb_normal = StyleBoxEmpty.new()
-	sb_normal.content_margin_left = 12
-	sb_normal.content_margin_right = 12
-	sb_normal.content_margin_top = 4
-	sb_normal.content_margin_bottom = 4
-	btn.add_theme_stylebox_override("normal", sb_normal)
-	
-	var sb_hover = StyleBoxFlat.new()
-	sb_hover.bg_color = Color(1.0, 1.0, 1.0, 0.05)
-	sb_hover.set_corner_radius_all(4)
-	sb_hover.content_margin_left = 12
-	sb_hover.content_margin_right = 12
-	sb_hover.content_margin_top = 4
-	sb_hover.content_margin_bottom = 4
+
+	btn.add_theme_stylebox_override("normal", _make_empty_button_style(indent))
+
+	var sb_hover = _make_button_style(HOVER_BG_COLOR, indent)
 	btn.add_theme_stylebox_override("hover", sb_hover)
+	btn.add_theme_stylebox_override("pressed", _make_button_style(SELECTED_BG_COLOR, indent))
 	btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+
+func _is_category_expanded(category_name: String) -> bool:
+	return bool(expanded_categories.get(category_name, false))
+
+func _set_category_expanded(category_name: String, expanded: bool) -> void:
+	if expanded:
+		expanded_categories[category_name] = true
+	else:
+		expanded_categories.erase(category_name)
+
+func _toggle_category(category_name: String) -> void:
+	_set_category_expanded(category_name, not _is_category_expanded(category_name))
+	rebuild_list()
+	_highlight_category(category_name)
+
+func _highlight_category(category_name: String) -> void:
+	for idx in range(visible_items.size()):
+		var item = visible_items[idx]
+		if item.type == "category" and item.key == category_name:
+			_set_highlight(idx)
+			return
+
+func _make_visible_item(item: Dictionary, button_node: Button) -> Dictionary:
+	var visible_item := item.duplicate()
+	visible_item.button_node = button_node
+	return visible_item
+
+func _create_menu_button(item: Dictionary, item_index: int, indent := 12, bold := false, base_color := Color("c8c8d4")) -> Button:
+	var btn = Button.new()
+	btn.text = _localized_label(item)
+	btn.tooltip_text = _localized_tooltip(item)
+	_style_menu_button(btn, indent, bold, base_color)
+	btn.mouse_entered.connect(func():
+		_set_highlight(item_index, false)
+	)
+	btn.pressed.connect(func():
+		_select_item(item)
+	)
+	return btn
 
 func rebuild_list():
 	# Clear list vbox
@@ -434,8 +510,6 @@ func rebuild_list():
 		
 	visible_items.clear()
 	highlighted_index = -1
-	
-	var current_item_index: int
 	
 	var query = search_query.strip_edges().to_lower()
 	if query != "":
@@ -450,196 +524,92 @@ func rebuild_list():
 		var item_index = 0
 		for entry in scored:
 			var item = entry.item
-			var btn = Button.new()
-			# Show path: e.g. "ASSETS > SPAWN MESHES"
+			var btn = _create_menu_button(item, item_index)
+			# Show path: e.g. "Assets > Spawn Meshes"
 			if item.type == "node":
-				btn.text = item.category.to_upper() + " > " + item.label.to_upper()
-				btn.tooltip_text = item.get("tooltip", "")
-			else:
-				btn.text = item.label.to_upper()
-				
-			_style_menu_button(btn)
-			
-			current_item_index = item_index
-			btn.mouse_entered.connect(func():
-				_set_highlight(current_item_index)
-			)
-			btn.pressed.connect(func():
-				_select_item(item)
-			)
+				btn.text = _node_path_label(item)
 			
 			list_vbox.add_child(btn)
-			item.button_node = btn
-			visible_items.append(item)
+			visible_items.append(_make_visible_item(item, btn))
 			item_index += 1
 	else:
-		# Empty search query -> show collapsed browsing
+		# Empty search query -> show expandable category browsing.
 		var item_index = 0
+		current_category = ""
+		_hide_sub_panel_immediately()
 		
-		if current_category != "":
-			# We are inside a category!
-			# Render Back button
-			var back_btn = Button.new()
-			back_btn.text = "< " + current_category.to_upper()
-			_style_menu_button(back_btn)
-			back_btn.add_theme_color_override("font_color", Color("22d3ee")) # Cyan back color
-			back_btn.add_theme_color_override("font_hover_color", Color("22d3ee"))
+		# Render Actions, Inputs & Outputs first (flat)
+		for item in all_items:
+			if item.type in ["action", "input", "output"]:
+				var btn = _create_menu_button(item, item_index)
+				list_vbox.add_child(btn)
+				visible_items.append(_make_visible_item(item, btn))
+				item_index += 1
+
+		# Render "Recently Used" section
+		if recently_used.size() > 0:
+			var recent_header = Label.new()
+			recent_header.text = FlowI18n.t("Recently Used")
+			recent_header.add_theme_font_size_override("font_size", 9)
+			recent_header.add_theme_color_override("font_color", Color("6b7280"))
+			var header_margin = MarginContainer.new()
+			header_margin.add_theme_constant_override("margin_left", 12)
+			header_margin.add_theme_constant_override("margin_top", 6)
+			header_margin.add_theme_constant_override("margin_bottom", 2)
+			header_margin.add_child(recent_header)
+			list_vbox.add_child(header_margin)
 			
-			current_item_index = item_index
-			back_btn.mouse_entered.connect(func():
-				_set_highlight(current_item_index)
-			)
-			back_btn.pressed.connect(func():
-				current_category = ""
-				rebuild_list()
-			)
+			for template_name in recently_used:
+				var recent_item = null
+				for item in all_items:
+					if item.type == "node" and item.key == template_name:
+						recent_item = item
+						break
+				if recent_item == null:
+					continue
+				var btn = _create_menu_button(recent_item, item_index, 12, false, ACCENT_COLOR)
+				list_vbox.add_child(btn)
+				visible_items.append(_make_visible_item(recent_item, btn))
+				item_index += 1
 			
-			list_vbox.add_child(back_btn)
-			
-			var back_item = {
-				"type": "back",
-				"key": null,
-				"label": "Back",
-				"category": "",
-				"button_node": back_btn
+			# Small separator after recent
+			var sep = HSeparator.new()
+			var sep_style = StyleBoxLine.new()
+			sep_style.color = Color(1.0, 1.0, 1.0, 0.05)
+			sep_style.thickness = 1
+			sep.add_theme_stylebox_override("separator", sep_style)
+			list_vbox.add_child(sep)
+
+		var categories = []
+		for item in all_items:
+			if item.type == "node":
+				var cat = item.category
+				if not cat in categories:
+					categories.append(cat)
+		categories.sort()
+
+		for cat in categories:
+			var expanded := _is_category_expanded(cat)
+			var cat_item = {
+				"type": "category",
+				"key": cat,
+				"label": cat,
+				"category": ""
 			}
-			visible_items.append(back_item)
+			var btn = _create_menu_button(cat_item, item_index, 12, true, Color("e5e7eb"))
+			btn.text = ("%s  %s" % ["▾" if expanded else "▸", _localized_node_category(cat)])
+			list_vbox.add_child(btn)
+			visible_items.append(_make_visible_item(cat_item, btn))
 			item_index += 1
 			
-			# Render node items of this category
-			for item in all_items:
-				if item.type == "node" and item.category == current_category:
-					var btn = Button.new()
-					btn.text = item.label.to_upper()
-					btn.tooltip_text = item.get("tooltip", "")
-					_style_menu_button(btn)
-					
-					current_item_index = item_index
-					btn.mouse_entered.connect(func():
-						_set_highlight(current_item_index)
-					)
-					btn.pressed.connect(func():
-						_select_item(item)
-					)
-					
-					list_vbox.add_child(btn)
-					item.button_node = btn
-					visible_items.append(item)
-					item_index += 1
-		else:
-			# We are at the root list: show Actions, Inputs, and Categories
-			
-			# Render Actions, Inputs & Outputs first (flat)
-			for item in all_items:
-				if item.type in ["action", "input", "output"]:
-					var btn = Button.new()
-					btn.text = item.label.to_upper()
-					_style_menu_button(btn)
-					
-					current_item_index = item_index
-					btn.mouse_entered.connect(func():
-						_set_highlight(current_item_index)
-					)
-					btn.pressed.connect(func():
-						_select_item(item)
-					)
-					
-					list_vbox.add_child(btn)
-					item.button_node = btn
-					visible_items.append(item)
-					item_index += 1
-			
-			# Render "Recently Used" section
-			if recently_used.size() > 0:
-				var recent_header = Label.new()
-				recent_header.text = "RECENTLY USED"
-				recent_header.add_theme_font_size_override("font_size", 9)
-				recent_header.add_theme_color_override("font_color", Color("6b7280"))
-				var header_margin = MarginContainer.new()
-				header_margin.add_theme_constant_override("margin_left", 12)
-				header_margin.add_theme_constant_override("margin_top", 6)
-				header_margin.add_theme_constant_override("margin_bottom", 2)
-				header_margin.add_child(recent_header)
-				list_vbox.add_child(header_margin)
-				
-				for template_name in recently_used:
-					var recent_item = null
-					for item in all_items:
-						if item.type == "node" and item.key == template_name:
-							recent_item = item
-							break
-					if recent_item == null:
-						continue
-					var btn = Button.new()
-					btn.text = recent_item.label.to_upper()
-					btn.tooltip_text = recent_item.get("tooltip", "")
-					_style_menu_button(btn)
-					btn.add_theme_color_override("font_color", ACCENT_COLOR)
-					
-					current_item_index = item_index
-					btn.mouse_entered.connect(func():
-						_set_highlight(current_item_index)
-					)
-					var captured_item = recent_item
-					btn.pressed.connect(func():
-						_select_item(captured_item)
-					)
-					
-					list_vbox.add_child(btn)
-					recent_item.button_node = btn
-					visible_items.append(recent_item)
-					item_index += 1
-				
-				# Small separator after recent
-				var sep = HSeparator.new()
-				var sep_style = StyleBoxLine.new()
-				sep_style.color = Color(1.0, 1.0, 1.0, 0.05)
-				sep_style.thickness = 1
-				sep.add_theme_stylebox_override("separator", sep_style)
-				list_vbox.add_child(sep)
-			
-			# Render categories collapsed
-			var categories = []
-			for item in all_items:
-				if item.type == "node":
-					var cat = item.category
-					if not cat in categories:
-						categories.append(cat)
-			categories.sort()
-			
-			for cat in categories:
-				var btn = Button.new()
-				btn.text = cat.to_upper() + "  >"
-				_style_menu_button(btn)
-				btn.add_theme_color_override("font_color", Color("cbd5e1")) # slightly brighter for categories
-				
-				current_item_index = item_index
-				var target_cat = cat
-				btn.mouse_entered.connect(func():
-					_set_highlight(current_item_index)
-					_show_sub_panel(target_cat, btn)
-				)
-				btn.mouse_exited.connect(func():
-					_start_sub_panel_hide_timer()
-				)
-				btn.pressed.connect(func():
-					current_category = target_cat
-					_hide_sub_panel_immediately()
-					rebuild_list()
-				)
-				
-				list_vbox.add_child(btn)
-				
-				var cat_item = {
-					"type": "category",
-					"key": cat,
-					"label": cat,
-					"category": "",
-					"button_node": btn
-				}
-				visible_items.append(cat_item)
-				item_index += 1
-				
+			if expanded:
+				for item in all_items:
+					if item.type == "node" and item.category == cat:
+						var child_btn = _create_menu_button(item, item_index, 30)
+						list_vbox.add_child(child_btn)
+						visible_items.append(_make_visible_item(item, child_btn))
+						item_index += 1
+
 	if visible_items.size() > 0:
 		_set_highlight(0)
 		
@@ -721,34 +691,25 @@ func update_layout(hovered_button: Button = null):
 		submenu_popup.position = Vector2i(x, y)
 		call_deferred("_update_sub_scroll_arrows")
 
-func _set_highlight(index: int):
+func _set_highlight(index: int, scroll_to_item := true):
 	# Clear previous highlight
 	if highlighted_index >= 0 and highlighted_index < visible_items.size():
 		var old_item = visible_items[highlighted_index]
 		if is_instance_valid(old_item.button_node):
-			old_item.button_node.add_theme_color_override("font_color", Color("c8c8d4"))
-			var sb_normal = StyleBoxEmpty.new()
-			sb_normal.content_margin_left = 12
-			sb_normal.content_margin_right = 12
-			sb_normal.content_margin_top = 4
-			sb_normal.content_margin_bottom = 4
-			old_item.button_node.add_theme_stylebox_override("normal", sb_normal)
+			var old_indent := int(old_item.button_node.get_meta("menu_indent", 12))
+			var old_color: Color = old_item.button_node.get_meta("menu_base_color", Color("c8c8d4"))
+			old_item.button_node.add_theme_color_override("font_color", old_color)
+			old_item.button_node.add_theme_stylebox_override("normal", _make_empty_button_style(old_indent))
 			
 	highlighted_index = index
 	if highlighted_index >= 0 and highlighted_index < visible_items.size():
 		var new_item = visible_items[highlighted_index]
 		if is_instance_valid(new_item.button_node):
 			new_item.button_node.add_theme_color_override("font_color", Color.WHITE)
-			var sb_sel = StyleBoxFlat.new()
-			sb_sel.bg_color = Color(1.0, 1.0, 1.0, 0.08) # slightly brighter background
-			sb_sel.set_corner_radius_all(4)
-			sb_sel.content_margin_left = 12
-			sb_sel.content_margin_right = 12
-			sb_sel.content_margin_top = 4
-			sb_sel.content_margin_bottom = 4
-			new_item.button_node.add_theme_stylebox_override("normal", sb_sel)
-			# Ensure it is visible in scroll container
-			_ensure_visible(new_item.button_node)
+			var new_indent := int(new_item.button_node.get_meta("menu_indent", 12))
+			new_item.button_node.add_theme_stylebox_override("normal", _make_button_style(SELECTED_BG_COLOR, new_indent))
+			if scroll_to_item:
+				_ensure_visible(new_item.button_node)
 
 func _ensure_visible(ctrl: Control):
 	var scroll_y = scroll.scroll_vertical
@@ -776,8 +737,7 @@ func _select_item(item: Dictionary):
 		output_selected.emit(item.key)
 		hide()
 	elif item.type == "category":
-		current_category = item.key
-		rebuild_list()
+		_toggle_category(item.key)
 	elif item.type == "back":
 		current_category = ""
 		rebuild_list()
@@ -813,16 +773,21 @@ func _on_line_edit_gui_input(event: InputEvent):
 					_set_highlight(next_idx)
 				get_viewport().set_input_as_handled()
 			KEY_LEFT:
-				if current_category != "" and search_query == "":
-					current_category = ""
-					rebuild_list()
-					get_viewport().set_input_as_handled()
+				if highlighted_index >= 0 and highlighted_index < visible_items.size() and search_query == "":
+					var item = visible_items[highlighted_index]
+					var category_name := String(item.key if item.type == "category" else item.category)
+					if not category_name.is_empty() and _is_category_expanded(category_name):
+						_set_category_expanded(category_name, false)
+						rebuild_list()
+						_highlight_category(category_name)
+						get_viewport().set_input_as_handled()
 			KEY_RIGHT:
 				if highlighted_index >= 0 and highlighted_index < visible_items.size() and search_query == "":
 					var item = visible_items[highlighted_index]
-					if item.type == "category":
-						current_category = item.key
+					if item.type == "category" and not _is_category_expanded(item.key):
+						_set_category_expanded(item.key, true)
 						rebuild_list()
+						_highlight_category(item.key)
 						get_viewport().set_input_as_handled()
 			KEY_ENTER:
 				if highlighted_index >= 0 and highlighted_index < visible_items.size():
@@ -852,8 +817,8 @@ func _show_sub_panel(category_name: String, category_button: Button):
 	
 	for item in sub_items:
 		var btn = Button.new()
-		btn.text = item.label.to_upper()
-		btn.tooltip_text = item.get("tooltip", "")
+		btn.text = _localized_label(item)
+		btn.tooltip_text = _localized_tooltip(item)
 		_style_menu_button(btn)
 		
 		btn.mouse_entered.connect(func():

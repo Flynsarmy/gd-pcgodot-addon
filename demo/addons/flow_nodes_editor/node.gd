@@ -121,7 +121,7 @@ func _update_data_tooltip():
 		var summary = output_summaries[port_idx]
 		if summary == null:
 			continue
-		var port_label = outs[port_idx].get("label", "Out %d" % port_idx)
+		var port_label = _localized_node_text(str(outs[port_idx].get("label", "Out %d" % port_idx)))
 		lines.append("%s: %d pts, %d streams" % [port_label, summary.points, summary.streams])
 		for si in summary.stream_info:
 			lines.append("  · %s (%s)" % [si.name, si.type])
@@ -149,13 +149,14 @@ func preExecute( ctx : FlowData.EvaluationContext ):
 	input_bulks = []
 	generated_bulks = []
 	
-	deps.map(func( conn : Dictionary ):
+	for conn in deps:
+		if conn.get("virtual_variable", false):
+			continue
 		# The number of bulkds in the pin 0 defines how many bulks we are going to generate
 		if conn.to_port == 0:
 			var node = ctx.gedit_nodes_by_name.get( conn.from_node )
 			if node:
 				num_connected_bulks += node.num_generated_bulks
-	)
 	if num_connected_bulks == 0:
 		num_connected_bulks = 1
 
@@ -217,9 +218,26 @@ func _get_category_hue() -> float:
 	# Fallback: hash-based
 	return float(t.hash() % 360) / 360.0
 
+func _clear_graph_node_stylebox_overrides():
+	remove_theme_stylebox_override("panel")
+	remove_theme_stylebox_override("panel_selected")
+	remove_theme_stylebox_override("titlebar")
+	remove_theme_stylebox_override("titlebar_selected")
+
+func _make_tinted_graph_node_stylebox(style_name: String, bg_color: Color):
+	if not has_theme_stylebox(style_name):
+		return null
+
+	var style = get_theme_stylebox(style_name).duplicate()
+	if style is StyleBoxFlat:
+		style.bg_color = bg_color
+		return style
+	return null
+
 func update_node_style():
 	if node_template == "reroute":
-		custom_minimum_size = Vector2(28, 28)
+		custom_minimum_size = Vector2(42, 24)
+		size = custom_minimum_size
 		var empty_sb = StyleBoxEmpty.new()
 		empty_sb.content_margin_left = 0
 		empty_sb.content_margin_right = 0
@@ -231,119 +249,41 @@ func update_node_style():
 		add_theme_stylebox_override("titlebar_selected", empty_sb)
 		return
 
-	# Category-based node colors (like Unreal PCG)
+	_clear_graph_node_stylebox_overrides()
+
 	var cat_hue := _get_category_hue()
-	
+
 	var is_colored = false
 	var editor = getEditor()
 	if editor and "color_nodes" in editor and editor.color_nodes:
 		is_colored = true
-		
-	# Panel body always stays dark neutral — only titlebar gets category color
-	var panel_bg := Color("1b1e28")
-	var panel_selected_bg := Color("1b1e28")
-	var panel_border: Color
-	var panel_selected_border: Color
-	
-	if is_colored:
-		# Subtle colored left border accent
-		panel_border = Color.from_hsv(cat_hue, 0.4, 0.35, 0.7)
-		panel_selected_border = Color("22d3ee")
-	else:
-		panel_border = Color(1.0, 1.0, 1.0, 0.07)
-		panel_selected_border = Color("22d3ee")
-	
-	# Override border color for debug/inspect state indicators
-	if settings:
-		if settings.debug_enabled and settings.inspect_enabled:
-			panel_border = Color("22d3ee") # Cyan for both
-			panel_selected_border = Color("22d3ee")
-		elif settings.debug_enabled:
-			panel_border = Color(0.13, 0.72, 0.93, 0.6) # Subtle cyan
-			panel_selected_border = Color("22d3ee")
-		elif settings.inspect_enabled:
-			panel_border = Color(1.0, 0.85, 0.0, 0.6) # Subtle yellow
-			panel_selected_border = Color("fbbf24") # Yellow accent
 
-	# Titlebar colors — this is where category color shows
-	var title_bg: Color
-	var title_selected_bg: Color
-	
-	if is_colored:
-		title_bg = Color.from_hsv(cat_hue, 0.35, 0.22, 1.0)
-		title_selected_bg = Color.from_hsv(cat_hue, 0.4, 0.28, 1.0)
-	else:
-		title_bg = Color("252836")
-		title_selected_bg = Color("2e3244")
-		
-	# StyleBox Panel
-	var sb_panel = StyleBoxFlat.new()
-	sb_panel.bg_color = panel_bg
-	sb_panel.set_corner_radius_all(6) # Figma: 6px corner radius
-	sb_panel.set_border_width_all(1)
-	sb_panel.border_color = panel_border
-	sb_panel.shadow_size = 16 # Figma: 16px shadow
-	sb_panel.shadow_color = Color(0, 0, 0, 0.5)
-	sb_panel.content_margin_left = 14 # Figma: paddingLeft: 14
-	sb_panel.content_margin_right = 14 # Figma: paddingRight: 14
-	sb_panel.content_margin_top = 0 # Figma: no gap between title and first port
-	sb_panel.content_margin_bottom = 6 # Figma: 6px bottom padding
-	add_theme_stylebox_override("panel", sb_panel)
-	
-	# StyleBox Panel Selected
-	var sb_panel_selected = StyleBoxFlat.new()
-	sb_panel_selected.bg_color = panel_selected_bg
-	sb_panel_selected.set_corner_radius_all(6) # Figma: 6px corner radius
-	sb_panel_selected.set_border_width_all(2)
-	sb_panel_selected.border_color = panel_selected_border
-	sb_panel_selected.shadow_size = 28 # Figma: 28px shadow
-	sb_panel_selected.shadow_color = Color(0, 0, 0, 0.7)
-	sb_panel_selected.content_margin_left = 14
-	sb_panel_selected.content_margin_right = 14
-	sb_panel_selected.content_margin_top = 0
-	sb_panel_selected.content_margin_bottom = 6
-	add_theme_stylebox_override("panel_selected", sb_panel_selected)
-	
-	# StyleBox Titlebar
-	var sb_title = StyleBoxFlat.new()
-	sb_title.bg_color = title_bg
-	sb_title.corner_radius_top_left = 6 # Figma: 6px corner radius
-	sb_title.corner_radius_top_right = 6
-	sb_title.corner_radius_bottom_left = 0
-	sb_title.corner_radius_bottom_right = 0
-	sb_title.border_width_left = 0
-	sb_title.border_width_top = 0
-	sb_title.border_width_right = 0
-	sb_title.border_width_bottom = 1
-	sb_title.border_color = Color(1.0, 1.0, 1.0, 0.05) # Figma: borderBottom: "1px solid rgba(255,255,255,0.05)"
-	sb_title.content_margin_left = 10 # Figma: paddingLeft: 10
-	sb_title.content_margin_right = 10
-	sb_title.content_margin_top = 9 # Figma: 34px total header height
-	sb_title.content_margin_bottom = 9
-	add_theme_stylebox_override("titlebar", sb_title)
-	
-	# StyleBox Titlebar Selected
-	var sb_title_selected = StyleBoxFlat.new()
-	sb_title_selected.bg_color = title_selected_bg
-	sb_title_selected.corner_radius_top_left = 6 # Figma: 6px corner radius
-	sb_title_selected.corner_radius_top_right = 6
-	sb_title_selected.corner_radius_bottom_left = 0
-	sb_title_selected.corner_radius_bottom_right = 0
-	sb_title_selected.border_width_left = 0
-	sb_title_selected.border_width_top = 0
-	sb_title_selected.border_width_right = 0
-	sb_title_selected.border_width_bottom = 1
-	sb_title_selected.border_color = Color(1.0, 1.0, 1.0, 0.05)
-	sb_title_selected.content_margin_left = 10
-	sb_title_selected.content_margin_right = 10
-	sb_title_selected.content_margin_top = 9
-	sb_title_selected.content_margin_bottom = 9
-	add_theme_stylebox_override("titlebar_selected", sb_title_selected)
-	
+	var custom_node_color = null
+	if has_method("_get_custom_node_color"):
+		custom_node_color = call("_get_custom_node_color")
+
+	if custom_node_color is Color:
+		var color : Color = custom_node_color
+		var sb_title = _make_tinted_graph_node_stylebox("titlebar", color.darkened(0.62))
+		if sb_title:
+			add_theme_stylebox_override("titlebar", sb_title)
+
+		var sb_title_selected = _make_tinted_graph_node_stylebox("titlebar_selected", color.darkened(0.48))
+		if sb_title_selected:
+			add_theme_stylebox_override("titlebar_selected", sb_title_selected)
+	elif is_colored:
+		var sb_title = _make_tinted_graph_node_stylebox("titlebar", Color.from_hsv(cat_hue, 0.35, 0.24, 1.0))
+		if sb_title:
+			add_theme_stylebox_override("titlebar", sb_title)
+
+		var sb_title_selected = _make_tinted_graph_node_stylebox("titlebar_selected", Color.from_hsv(cat_hue, 0.4, 0.30, 1.0))
+		if sb_title_selected:
+			add_theme_stylebox_override("titlebar_selected", sb_title_selected)
+
 	# Title text color overrides
 	add_theme_color_override("title_color", Color("cdd0dc")) # Figma title color
 	add_theme_color_override("title_selected_color", Color("ffffff"))
-	
+
 	var title_font = null
 	if has_theme_font("bold", "EditorFonts"):
 		title_font = get_theme_font("bold", "EditorFonts")
@@ -352,35 +292,46 @@ func update_node_style():
 	if title_font:
 		add_theme_font_override("title_font", title_font)
 	add_theme_font_size_override("title_font_size", 12)
-	
-	# Node width constraint (Figma NODE_WIDTH = 210)
+
 	custom_minimum_size.x = 210
-	
-	# Port vertical separation (Figma spacing)
 	add_theme_constant_override("separation", 4)
-	
+
 	self_modulate = Color.WHITE
 
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
+			var editor = getEditor()
+			if editor and editor.has_method("prepare_graph_for_interaction"):
+				editor.prepare_graph_for_interaction()
+			elif editor and editor.has_method("repair_graph_integrity"):
+				editor.repair_graph_integrity()
 			var gedit = get_parent() as GraphEdit
 			if gedit:
-				if not Input.is_key_pressed(KEY_SHIFT) and not Input.is_key_pressed(KEY_CTRL):
+				var additive := Input.is_key_pressed(KEY_SHIFT) or Input.is_key_pressed(KEY_CTRL)
+				if additive:
+					selected = true
+				elif not selected:
 					for child in gedit.get_children():
 						if child is GraphNode and child != self:
 							child.selected = false
-				selected = true
+					selected = true
+				# Already selected without modifier: keep multi-selection for group drag.
+			if node_template == "set_variable" or node_template == "get_variable":
+				if editor:
+					if node_template == "set_variable" and editor.has_method("flash_linked_get_variable_nodes"):
+						editor.flash_linked_get_variable_nodes(self)
+					elif node_template == "get_variable" and editor.has_method("flash_linked_set_variable_nodes"):
+						editor.flash_linked_set_variable_nodes(self)
 			if event.double_click:
 				if node_template == "subgraph" and settings and "graph" in settings and settings.graph:
-					var editor = getEditor()
 					if editor:
 						editor.setResourceToEdit(settings.graph, null)
 
 func refreshFromSettings():
 	refreshDebugMark()
 	refreshInspectMark()
-	title = getTitle()
+	refreshLocalizedText()
 	modulate = Color( 0.7, 0.7, 0.7, 0.5 ) if settings.disabled else Color.WHITE
 	
 	update_node_style()
@@ -522,7 +473,46 @@ func getMeta() -> Dictionary:
 	return meta_node
 	
 func getTitle() -> String:
-	return settings.title
+	if settings:
+		return settings.title
+	return str(getMeta().get("title", ""))
+
+func getLocalizedTitle() -> String:
+	return _localized_node_text(getTitle())
+
+func getTooltip() -> String:
+	return _localized_node_text(str(getMeta().get("tooltip", "")))
+
+func refreshLocalizedText() -> void:
+	title = getLocalizedTitle()
+	if get_meta("output_summaries", []).is_empty():
+		tooltip_text = getTooltip()
+	else:
+		_update_data_tooltip()
+	_refresh_connector_labels()
+
+func _refresh_connector_labels() -> void:
+	var meta := getMeta()
+	var outs = meta.get("outs", [])
+	var row_index := 0
+	for child in get_children():
+		var row := child as FlowConnectorRow
+		if row == null:
+			continue
+		if row_index < num_in_ports and not row.data.is_empty():
+			row.getInLabel().text = _localized_node_text(str(row.data.get("label", "")))
+		elif row_index >= num_in_ports:
+			row.getInLabel().text = ""
+		if row_index < outs.size() and outs[row_index]:
+			row.getOutLabel().text = _localized_node_text(str(outs[row_index].get("label", "")))
+		else:
+			row.getOutLabel().text = ""
+		row_index += 1
+
+func _localized_node_text(text: String) -> String:
+	if text.is_empty():
+		return text
+	return FlowI18n.tn(text)
 
 func shuffleArray(arr: Array) -> void:
 	for i in range(arr.size() - 1, 0, -1):
@@ -731,7 +721,7 @@ func initFromScript():
 				in_data = ins[idx]
 			else:
 				in_data = exposed_params[ idx - num_ins ]
-			lbl_in.text = in_data.label
+			lbl_in.text = _localized_node_text(str(in_data.get("label", "")))
 			
 			var in_name = in_data.get( "name", in_data.label )
 			
@@ -758,7 +748,7 @@ func initFromScript():
 		if idx < num_outs:
 			var out_data = outs[idx]
 			if out_data:
-				lbl_out.text = out_data.label
+				lbl_out.text = _localized_node_text(str(out_data.get("label", "")))
 				set_slot_enabled_right( idx, true )
 					
 				# Change color
@@ -809,7 +799,9 @@ func refreshConnectionFlags( ):
 			args_ports_by_name[ arg_name ].connected = editor.is_node_port_connected( name, args_ports_by_name[ arg_name ].port )
 		
 func nodeOptionsChanged( expanded : bool ):
-	show_disconnected_inputs = not show_disconnected_inputs
+	if show_disconnected_inputs == expanded:
+		return
+	show_disconnected_inputs = expanded
 	refreshConnectionFlags( )
 	initFromScript()
 	setupDrawDebug()

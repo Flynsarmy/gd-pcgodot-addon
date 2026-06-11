@@ -1,94 +1,132 @@
-[gd_scene load_steps=2 format=3 uid="uid://bl8p4bid734wo"]
+[gd_scene load_steps=3 format=3 uid="uid://bl8p4bid734wo"]
 
 [ext_resource type="Script" uid="uid://rhc2whb7j6tt" path="res://addons/flow_nodes_editor/flow_editor.gd" id="1_0ji4f"]
+[ext_resource type="Script" path="res://addons/flow_nodes_editor/flow_graph_edit.gd" id="2_l4kri"]
 
 [node name="FlowEditor" type="Control"]
-layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 script = ExtResource("1_0ji4f")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="."]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 
-[node name="ScrollContainer" type="ScrollContainer" parent="VBoxContainer"]
+[node name="TabBarPanel" type="PanelContainer" parent="VBoxContainer"]
 layout_mode = 2
+size_flags_vertical = 0
+
+[node name="TabBarRow" type="HBoxContainer" parent="VBoxContainer/TabBarPanel"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ButtonOpenGraph" type="Button" parent="VBoxContainer/TabBarPanel/TabBarRow"]
+custom_minimum_size = Vector2(28, 28)
+layout_mode = 2
+tooltip_text = "Open a FlowGraph resource"
+
+[node name="TabBar" type="TabBar" parent="VBoxContainer/TabBarPanel/TabBarRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+tab_close_display_policy = 1
+
+[node name="ButtonExpandGraph" type="Button" parent="VBoxContainer/TabBarPanel/TabBarRow"]
+custom_minimum_size = Vector2(28, 28)
+layout_mode = 2
+
+[node name="ScrollContainer" type="ScrollContainer" parent="VBoxContainer"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 0
 vertical_scroll_mode = 0
 
 [node name="HBoxContainer" type="HBoxContainer" parent="VBoxContainer/ScrollContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
-
-[node name="ButtonReload" type="Button" parent="VBoxContainer/ScrollContainer/HBoxContainer"]
-layout_mode = 2
-text = "Reload"
-
-[node name="ButtonInputs" type="Button" parent="VBoxContainer/ScrollContainer/HBoxContainer"]
-layout_mode = 2
-text = "Inputs"
+theme_override_constants/separation = 6
 
 [node name="ButtonSave" type="Button" parent="VBoxContainer/ScrollContainer/HBoxContainer"]
+custom_minimum_size = Vector2(34, 32)
 layout_mode = 2
-text = "Save Resource"
+
+[node name="ButtonBrowse" type="Button" parent="VBoxContainer/ScrollContainer/HBoxContainer"]
+custom_minimum_size = Vector2(34, 32)
+layout_mode = 2
+
+[node name="ButtonReload" type="Button" parent="VBoxContainer/ScrollContainer/HBoxContainer"]
+custom_minimum_size = Vector2(34, 32)
+layout_mode = 2
+
+[node name="ButtonAnalyze" type="Button" parent="VBoxContainer/ScrollContainer/HBoxContainer"]
+custom_minimum_size = Vector2(34, 32)
+layout_mode = 2
+
+[node name="ButtonRegenerate" type="Button" parent="VBoxContainer/ScrollContainer/HBoxContainer"]
+custom_minimum_size = Vector2(34, 32)
+layout_mode = 2
+
+[node name="ToolbarSpacer" type="Control" parent="VBoxContainer/ScrollContainer/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ButtonMinimap" type="Button" parent="VBoxContainer/ScrollContainer/HBoxContainer"]
+custom_minimum_size = Vector2(34, 32)
+layout_mode = 2
+toggle_mode = true
+
+[node name="ButtonInputs" type="Button" parent="VBoxContainer/ScrollContainer/HBoxContainer"]
+custom_minimum_size = Vector2(34, 32)
+layout_mode = 2
+
+[node name="ButtonSettings" type="Button" parent="VBoxContainer/ScrollContainer/HBoxContainer"]
+custom_minimum_size = Vector2(34, 32)
+layout_mode = 2
 
 [node name="AutoRegen" type="CheckBox" parent="VBoxContainer/ScrollContainer/HBoxContainer"]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 button_pressed = true
-text = "Auto Regen"
+text = "Auto Generate"
 
 [node name="CheckColorNodes" type="CheckBox" parent="VBoxContainer/ScrollContainer/HBoxContainer"]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 button_pressed = true
 text = "Color Nodes"
 
-[node name="ButtonRegenerate" type="Button" parent="VBoxContainer/ScrollContainer/HBoxContainer"]
-layout_mode = 2
-text = "Regenerate"
-
-[node name="LabelInfo" type="Label" parent="VBoxContainer/ScrollContainer/HBoxContainer"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Info"
-
 [node name="VSplitContainer" type="HSplitContainer" parent="VBoxContainer"]
-custom_minimum_size = Vector2(200, 0)
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
-split_offset = 400
+split_offset = 280
 
 [node name="GraphEdit" type="GraphEdit" parent="VBoxContainer/VSplitContainer"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 200)
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 theme_override_colors/activity = Color(1, 0.2, 0.2, 1)
-right_disconnects = true
+right_disconnects = false
 connection_lines_thickness = 2.0
 show_zoom_buttons = false
 show_grid_buttons = false
+minimap_enabled = false
+script = ExtResource("2_l4kri")
 
-[connection signal="pressed" from="VBoxContainer/ScrollContainer/HBoxContainer/ButtonReload" to="." method="_on_button_reload_pressed"]
-[connection signal="pressed" from="VBoxContainer/ScrollContainer/HBoxContainer/ButtonInputs" to="." method="_on_button_inputs_pressed"]
-[connection signal="pressed" from="VBoxContainer/ScrollContainer/HBoxContainer/ButtonSave" to="." method="_on_button_save_pressed"]
-[connection signal="toggled" from="VBoxContainer/ScrollContainer/HBoxContainer/AutoRegen" to="." method="_on_auto_regen_toggled"]
-[connection signal="toggled" from="VBoxContainer/ScrollContainer/HBoxContainer/CheckColorNodes" to="." method="_on_color_nodes_toggled"]
-[connection signal="pressed" from="VBoxContainer/ScrollContainer/HBoxContainer/ButtonRegenerate" to="." method="_on_button_regenerate_pressed"]
+[node name="StatusPanel" type="PanelContainer" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 0
+
+[node name="FlowStatusLabel" type="Label" parent="VBoxContainer/StatusPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.180392, 0.172549, 0.282353, 1)
+theme_override_font_sizes/font_size = 11
+
 [connection signal="connection_from_empty" from="VBoxContainer/VSplitContainer/GraphEdit" to="." method="_on_graph_edit_connection_from_empty"]
 [connection signal="connection_request" from="VBoxContainer/VSplitContainer/GraphEdit" to="." method="_on_graph_edit_connection_request"]
 [connection signal="connection_to_empty" from="VBoxContainer/VSplitContainer/GraphEdit" to="." method="_on_graph_edit_connection_to_empty"]
