@@ -16,7 +16,9 @@ var node_settings_inspector_plugin : EditorInspectorPlugin
 var current_scene_root = null
 var current_watched_node = null
 
-@onready var selection = EditorInterface.get_selection()
+# Resolved in _enter_tree; null in headless/--import runs where there is no
+# editor selection — every use must null-guard.
+var selection : EditorSelection = null
 
 func spawnDock( res_template : String, title : String, bottom : bool ) -> Control:
 	var packed : PackedScene = load( res_template )
@@ -30,6 +32,7 @@ func spawnDock( res_template : String, title : String, bottom : bool ) -> Contro
 
 func _enter_tree():
 	print("Data Flow plugin enabled")
+	selection = EditorInterface.get_selection()
 	graph_dock = spawnDock("res://addons/flow_nodes_editor/flow_editor.tscn", "Data Flow", false ) as Control
 
 	graph_input_inspector_plugin = load("res://addons/flow_nodes_editor/graph_input_parameter_inspector.gd").new()
@@ -48,7 +51,8 @@ func _enter_tree():
 		efs.filesystem_changed.connect(_on_filesystem_changed)
 		efs.resources_reimported.connect(_on_resources_reimported)
 
-	selection.selection_changed.connect(_selection_changed)
+	if selection and not selection.selection_changed.is_connected(_selection_changed):
+		selection.selection_changed.connect(_selection_changed)
 
 	set_process(true)
 	
@@ -74,7 +78,7 @@ func _exit_tree():
 	if data_inspector_dock and is_instance_valid(data_inspector_dock):
 		remove_control_from_bottom_panel(data_inspector_dock)
 		data_inspector_dock.free()
-	if selection.selection_changed.is_connected(_selection_changed):
+	if selection and selection.selection_changed.is_connected(_selection_changed):
 		selection.selection_changed.disconnect(_selection_changed)
 
 func _ready():
@@ -98,7 +102,8 @@ func on_scene_changed(scene_root: Node) -> void:
 		
 
 func _selection_changed():
-	
+	if selection == null:
+		return
 	var scene_nodes = selection.get_selected_nodes()
 	if not scene_nodes.is_empty():
 		var scene_node = scene_nodes[0]

@@ -6,15 +6,17 @@ extends FlowNodeBase
 
 func _init():
 	meta_node = {
-		"title" : "•",
+		"title" : "Reroute",
 		"settings" : NodeSettings,
 		"ins" : [{ "label" : "", "data_type" : FlowData.DataType.Invalid }],
 		"outs" : [{ "label" : "", "data_type" : FlowData.DataType.Invalid }],
+		"aliases" : ["Reroute"],
+		"category" : "Utility",
 		"tooltip" : "Reroute point — passes data through unchanged",
-		"hide_inputs" : false
 	}
 
 func getTitle() -> String:
+	# Stay compact: the node renders as a 30x30 dot without a visible title.
 	return ""
 
 func execute( ctx : FlowData.EvaluationContext ):

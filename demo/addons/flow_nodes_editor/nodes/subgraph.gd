@@ -115,7 +115,10 @@ func execute( ctx : FlowData.EvaluationContext ):
 				# Priority 3: Graph default (handled by the evaluator's input node)
 	
 	var FlowNodeIOClass = load("res://addons/flow_nodes_editor/flow_nodes_io.gd")
-	var outputs = FlowNodeIOClass.evaluate_graph(settings.graph, input_data_map, ctx)
+	# Recursion guard: evaluate_graph stamps its depth on the ctx it builds;
+	# editor-built contexts have no meta, so default to 0 there.
+	var depth : int = ctx.get_meta("flow_eval_depth", 0)
+	var outputs = FlowNodeIOClass.evaluate_graph(settings.graph, input_data_map, ctx, {}, depth + 1)
 	
 	var meta = getMeta()
 	var missing_outputs := PackedStringArray()

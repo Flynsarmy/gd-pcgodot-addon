@@ -542,137 +542,6 @@ func populatePopupOutputsMenu():
 		popup_menu_outputs.add_item( "No outputs defined", -1 )
 		popup_menu_outputs.set_item_disabled(0, true)
 
-func populatePopupMenu() -> PopupMenu:
-	min_id = 1000
-	max_id = min_id
-	menu_ids = {}
-	
-	var pm := PopupMenu.new()
-	add_child( pm )
-	pm.name = "MainMenu"
-	pm.clear()
-	pm.id_pressed.connect( _on_popup_menu_id_pressed )
-	
-	var required_input_type := FlowData.DataType.Invalid
-	var required_output_type := FlowData.DataType.Invalid
-	if auto_connect_from_node:
-		var from_node = gedit_nodes_by_name.get( auto_connect_from_node )
-		if from_node:
-			var meta = from_node.getMeta()
-			if auto_connect_from_port < meta.outs.size():
-				var oport = meta.outs[ auto_connect_from_port ]
-				required_input_type = oport.get( "data_type", FlowData.DataType.Invalid )
-		print( "auto_connect_from_node: %s:%d -> %d" % [ auto_connect_from_node, auto_connect_from_port, required_input_type])
-
-	if auto_connect_to_node:
-		var to_node = gedit_nodes_by_name.get( auto_connect_to_node )
-		if to_node:
-			var meta = to_node.getMeta()
-			if auto_connect_to_port < meta.ins.size():
-				var iport = meta.ins[ auto_connect_to_port ]
-				required_output_type = iport.get( "data_type", FlowData.DataType.Invalid )
-		print( "auto_connect_to_node: %s:%d -> %d" % [auto_connect_to_node, auto_connect_to_port, required_output_type ])
-
-	# A submenu to invoke the inputs declared in the pcg
-	if required_input_type == FlowData.DataType.Invalid:
-		if getSelectedNodes().size() > 0:
-			pm.add_item("Collapse Selected to Subgraph", IDM_COLLAPSE_TO_SUBGRAPH)
-			pm.add_separator("", -1)
-			
-		if popup_menu_inputs:
-			popup_menu_inputs.queue_free()
-		popup_menu_inputs = PopupMenu.new()
-		popup_menu_inputs.name = "inputs_menu"
-		popup_menu_inputs.id_pressed.connect( _on_inputs_menu_id_pressed )
-		pm.add_child(popup_menu_inputs)
-		pm.add_submenu_item("Inputs...", popup_menu_inputs.name)
-		pm.add_separator( "", -1 )
-		populatePopupInputsMenu()
-
-		if popup_menu_outputs:
-			popup_menu_outputs.queue_free()
-		popup_menu_outputs = PopupMenu.new()
-		popup_menu_outputs.name = "outputs_menu"
-		popup_menu_outputs.id_pressed.connect( _on_outputs_menu_id_pressed )
-		pm.add_child(popup_menu_outputs)
-		pm.add_submenu_item("Outputs...", popup_menu_outputs.name)
-		pm.add_separator( "", -1 )
-		populatePopupOutputsMenu()
-
-	# Categorized node submenus
-	var cat_map = {
-		"Black Lantern": ["bl_style_lab_source", "bl_building_mass", "bl_zone_carver", "bl_room_splitter", "bl_decorator_master", "bl_tactical_decorator", "bl_floor_data_to_points", "bl_floor_data_contract_points", "bl_validate_floor_data", "bl_room_style_template", "bl_style_context_source", "bl_style_context_points", "bl_style_anchor_points", "bl_sync_grid_cell", "bl_points_to_style_spec", "bl_style_spec_to_points", "bl_style_spec_merge", "bl_style_metadata_spec", "bl_smart_prop_scatter", "bl_points_to_floor_data_props"],
-		"Attributes": ["add_attribute", "attribute_rename", "remove_attribute", "attribute_filter_range", "point_filter_range", "mutate_seed", "add_tags", "delete_tags", "replace_tags", "point_to_attribute_set", "attribute_set_to_point", "load_data_table", "data_table_row_to_attribute_set", "load_pcg_data_asset"],
-		"Math": ["math_op", "remap", "expression", "reduce", "boolean"],
-		"Splines": ["create_spline", "sample_spline", "distance", "scan_splines", "clip_points_by_polygon", "clip_paths", "polygon_operation", "split_splines", "create_surface_from_spline", "create_surface_from_polygon"],
-		"Meshes": ["sample_mesh", "scan_meshes", "point_from_mesh", "texture_sampler", "points_from_imported_scene", "load_alembic_file"],
-		"Spatial": ["substract", "difference", "intersection", "union", "point_neighborhood", "ray_cast", "physics_overlap_query", "physics_shape_sweep", "navigation_region_sampler"],
-		"Assets": ["assets", "spawn_meshes", "spawn_scenes", "apply_on_actor", "points_from_imported_scene", "load_alembic_file", "load_pcg_data_asset"],
-		"Generators": ["grid", "grid_fill_bounds", "grid_connect_points", "grid_boundary", "noise", "relax", "self_pruning", "dungeon_generator", "volume_sampler"],
-		"Utility": ["input", "output", "subgraph", "loop", "debug", "sort", "merge", "merge_points", "partition", "filter", "copy", "copy_points", "point_offsets", "transform_points", "points_from_scene", "point_from_player_pawn", "points_from_tilemap", "points_from_gridmap", "size", "get_points_count", "get_data_count", "get_entries_count", "get_loop_index"]
-	}
-	
-	# Helper to find category of a node template
-	var get_category = func(template_name: String) -> String:
-		for cat in cat_map:
-			if template_name in cat_map[cat]:
-				return cat
-		return "Utility"
-		
-	# Group node types by category
-	var categorized_keys = {}
-	for key in node_types.keys():
-		var node_meta = node_types[key]
-		if not node_meta.get("auto_register", true):
-			continue
-			
-		# Check port compatibility if drag connecting
-		if required_input_type != FlowData.DataType.Invalid or required_output_type != FlowData.DataType.Invalid:
-			var has_compatible_port = false
-			var ports = node_meta.ins if required_input_type != FlowData.DataType.Invalid else node_meta.outs
-			var required_type = required_input_type if required_input_type != FlowData.DataType.Invalid else required_output_type
-			for port in ports:
-				var port_type = port.get("data_type", 0)
-				if port_type == required_type:
-					has_compatible_port = true
-					break
-			if not has_compatible_port:
-				continue
-				
-		var cat = get_category.call(key)
-		if not categorized_keys.has(cat):
-			categorized_keys[cat] = []
-		categorized_keys[cat].append(key)
-		
-	# Sort categories alphabetically
-	var sorted_categories = categorized_keys.keys()
-	sorted_categories.sort()
-	
-	for cat in sorted_categories:
-		var sub_pm = PopupMenu.new()
-		sub_pm.name = cat + "_menu"
-		sub_pm.id_pressed.connect(_on_popup_menu_id_pressed)
-		pm.add_child(sub_pm)
-		pm.add_submenu_item(cat, sub_pm.name)
-		
-		# Sort node templates in this category alphabetically by title
-		var templates = categorized_keys[cat]
-		templates.sort_custom(func(a, b):
-			return node_types[a].title.nocasecmp_to(node_types[b].title) < 0
-		)
-		
-		var idx = 0
-		for key in templates:
-			var node_meta = node_types[key]
-			max_id += 1
-			menu_ids[max_id] = key
-			sub_pm.add_item(node_meta.title, max_id, KEY_NONE)
-			if node_meta.has("tooltip"):
-				sub_pm.set_item_tooltip(idx, node_meta.get("tooltip"))
-			idx += 1
-			
-	return pm
-
 func _ready():
 	
 	if not Engine.is_editor_hint():
@@ -1052,6 +921,32 @@ func _find_nearest_connection(screen_pos: Vector2):
 				best_conn = conn
 	
 	return best_conn
+
+## Splices a reroute node into an existing connection at the given screen position
+## (double-click on a wire). Records a single undo action covering the node add
+## and the wire splice (disconnect original, connect src -> reroute -> dst).
+func _insert_reroute_on_connection(conn, screen_pos: Vector2):
+	var from_node : StringName = conn.from_node
+	var from_port : int = conn.from_port
+	var to_node : StringName = conn.to_node
+	var to_port : int = conn.to_port
+
+	var before_state = get_graph_snapshot()
+	local_drop_position = screen_pos
+	var node_name = getNewName("reroute")
+	var reroute_node = addNodeFromTemplate("reroute", node_name)
+	if not reroute_node:
+		return
+	# Center the compact reroute on the click point
+	reroute_node.position_offset -= Vector2(15, 15)
+
+	disconnect_nodes(from_node, from_port, to_node, to_port)
+	connect_nodes(from_node, from_port, reroute_node.name, 0)
+	connect_nodes(reroute_node.name, 0, to_node, to_port)
+
+	record_undo_action("Insert Reroute", before_state)
+	update_status_bar("Inserted reroute on %s → %s" % [from_node, to_node])
+	queueRegen()
 
 ## Analyze a specific node (used by hover-based hotkeys).
 func analyzeNode(node: FlowNodeBase):
@@ -1490,16 +1385,24 @@ func addNode( node_template, settings = null ):
 
 # ------------------------------------------------
 func _on_graph_edit_gui_input(event):
-	# Ctrl+Click on wire to disconnect
+	# Ctrl+Click (or Alt+Click, UE muscle memory) on wire to disconnect
 	var evt_mouse = event as InputEventMouseButton
-	if evt_mouse and evt_mouse.pressed and evt_mouse.button_index == MOUSE_BUTTON_LEFT and evt_mouse.ctrl_pressed:
+	if evt_mouse and evt_mouse.pressed and evt_mouse.button_index == MOUSE_BUTTON_LEFT and (evt_mouse.ctrl_pressed or evt_mouse.alt_pressed):
 		var conn = _find_nearest_connection(evt_mouse.position)
 		if conn:
 			_on_graph_edit_disconnection_request(conn.from_node, conn.from_port, conn.to_node, conn.to_port)
 			update_status_bar("Disconnected %s → %s" % [conn.from_node, conn.to_node])
 			gedit.accept_event()
 			return
-	
+
+	# Double-click on wire to insert a reroute node
+	if evt_mouse and evt_mouse.pressed and evt_mouse.double_click and evt_mouse.button_index == MOUSE_BUTTON_LEFT:
+		var conn = _find_nearest_connection(evt_mouse.position)
+		if conn:
+			_insert_reroute_on_connection(conn, evt_mouse.position)
+			gedit.accept_event()
+			return
+
 	var evt_key = event as InputEventKey
 	if evt_key and evt_key.pressed:
 		var no_modifiers = not evt_key.ctrl_pressed and not evt_key.alt_pressed and not evt_key.shift_pressed
@@ -1537,7 +1440,7 @@ func _on_graph_edit_gui_input(event):
 					node.dirty = true
 				evalGraph()
 				gedit.accept_event()
-		elif key == KEY_F:
+		elif key == KEY_F or key == KEY_HOME:
 			if no_modifiers:
 				_zoom_to_fit()
 				gedit.accept_event()
@@ -1654,10 +1557,18 @@ func analyzeSelection():
 
 func addComment():
 	var nodes = getSelectedNodes()
-	var rect = getRectOfNodes( nodes )
-	rect.position -= comment_padding
-	rect.size += comment_padding * 2
-	
+	var rect : Rect2
+	if nodes.is_empty():
+		# No selection: default-size comment centered on the mouse position
+		# (getRectOfNodes would return a degenerate zero rect at the origin).
+		var default_size := Vector2(400, 250)
+		var graph_pos = localToGraphCoords(gedit.get_local_mouse_position())
+		rect = Rect2(graph_pos - default_size * 0.5, default_size)
+	else:
+		rect = getRectOfNodes( nodes )
+		rect.position -= comment_padding
+		rect.size += comment_padding * 2
+
 	var frame := GraphFrame.new()
 	frame.name = getNewName("comment")
 	frame.title = "My Comments..."
@@ -2291,16 +2202,6 @@ func _on_graph_edit_connection_from_empty(to_node: StringName, to_port: int, rel
 	local_drop_position = release_position
 	_on_graph_edit_popup_request( local_drop_position )
 
-func getDeps( node : FlowNodeBase ) -> Array[ FlowNodeBase ]:
-	var deps : Array[ FlowNodeBase ] = [ node ]
-	for conn in node.deps:
-		var dep_node = gedit_nodes_by_name.get( conn.from_node, null )
-		if not dep_node:
-			continue
-		var req_deps = getDeps( dep_node )
-		deps.append_array( req_deps )
-	return deps
-	
 func getAllNodes() -> Array[ FlowNodeBase ]:
 	var nodes : Array[ FlowNodeBase ] = []
 	for child in gedit.get_children():
@@ -2309,27 +2210,39 @@ func getAllNodes() -> Array[ FlowNodeBase ]:
 			continue
 		nodes.append( node )
 	return nodes
-	
+
 func getEvalOrder():
 	# Find targets, like spawn meshes
 	var finals := getAllNodes().filter( func ( node : FlowNodeBase ) -> bool:
 		return ( not node.settings.disabled ) and ( node.settings.inspect_enabled or node.settings.debug_enabled or node.getMeta().get( "is_final", false ) )
 	)
-	
-	# for each node, find requirements
-	# A -
-	#    -- C - D
-	# B -
-	# D -> C -> A -> B
-	var all_deps : Array[ FlowNodeBase ]
+
+	# Topological sort (post-order DFS: a node's dependencies are emitted BEFORE the
+	# node that consumes them). Mirrors flow_nodes_io.gd evaluate_graph. The previous
+	# pre-order+reverse approach had no visited set — exponential on diamond graphs,
+	# infinite recursion on cycles, and a shared upstream node could be scheduled
+	# AFTER one of its consumers, so that consumer executed with stale/empty input.
+	var ordered_nodes : Array[ FlowNodeBase ] = []
+	var topo_visited = {}
+	var topo_in_progress = {}
+	var visit_node = func( node : FlowNodeBase, this_func ) -> void:
+		if topo_visited.has( node.name ):
+			return
+		if topo_in_progress.has( node.name ):
+			push_warning( "Circular dependency detected involving node: " + node.name )
+			return
+		topo_in_progress[ node.name ] = true
+		for conn in node.deps:
+			var dep_node = gedit_nodes_by_name.get( conn.from_node, null )
+			if dep_node:
+				this_func.call( dep_node, this_func )
+		topo_in_progress.erase( node.name )
+		topo_visited[ node.name ] = true
+		ordered_nodes.append( node )
+
 	for node in finals:
-		var node_deps = getDeps( node )
-		all_deps.append_array( node_deps )
-	
-	# Evaluate in inverse order
-	# B, A, C, D
-	all_deps.reverse()	
-	return all_deps
+		visit_node.call( node, visit_node )
+	return ordered_nodes
 
 func removeGeneratedNodes():
 	if not resource_owner:
