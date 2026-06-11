@@ -550,11 +550,6 @@ static func _is_topo_final_root(node: FlowNodeBase) -> bool:
 		return true
 	if not node.getMeta().get("is_final", false):
 		return false
-	# Subgraph nodes fed by in-graph wires are already reached via upstream finals.
-	if node.node_template == "subgraph":
-		for conn in node.deps:
-			if not conn.get("virtual_variable", false):
-				return false
 	return true
 
 

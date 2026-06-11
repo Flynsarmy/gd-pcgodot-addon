@@ -199,13 +199,30 @@ func _data_fixture_for_input(ctx: FlowData.EvaluationContext, input_name: String
 		return null
 	if not ctx.owner.has_meta("flow_debug_graph") or not ctx.owner.has_meta("flow_debug_input_data_map"):
 		return null
-	if ctx.owner.get_meta("flow_debug_graph") != ctx.graph:
+	if not _debug_graph_matches(ctx.owner, ctx.graph):
 		return null
 	var data_map: Dictionary = ctx.owner.get_meta("flow_debug_input_data_map")
 	var data_value = data_map.get(input_name, null)
 	if not (data_value is FlowData.Data):
 		return null
 	return _normalize_input_data(data_value, input_name, input_type)
+
+func _debug_graph_matches(owner: Object, graph: FlowGraphResource) -> bool:
+	if owner == null or graph == null:
+		return false
+	var debug_graph = owner.get_meta("flow_debug_graph", null)
+	if debug_graph == graph:
+		return true
+	var graph_path := String(graph.resource_path)
+	if graph_path.is_empty():
+		return false
+	var debug_path := String(owner.get_meta("flow_debug_graph_path", ""))
+	if not debug_path.is_empty() and debug_path == graph_path:
+		return true
+	if debug_graph is FlowGraphResource:
+		var debug_graph_path := String(debug_graph.resource_path)
+		return not debug_graph_path.is_empty() and debug_graph_path == graph_path
+	return false
 
 func _normalize_input_data(data: FlowData.Data, input_name: String, input_type: FlowData.DataType) -> FlowData.Data:
 	var target := FlowData.Data.new()

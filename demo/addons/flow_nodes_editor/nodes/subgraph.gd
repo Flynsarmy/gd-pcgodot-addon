@@ -140,6 +140,7 @@ func _gui_input(event: InputEvent):
 			if owner:
 				var debug_inputs := _debug_input_data_map()
 				owner.set_meta("flow_debug_graph", settings.graph)
+				owner.set_meta("flow_debug_graph_path", settings.graph.resource_path)
 				owner.set_meta("flow_debug_input_data_map", debug_inputs)
 			editor.setResourceToEdit(settings.graph, owner)
 			accept_event()

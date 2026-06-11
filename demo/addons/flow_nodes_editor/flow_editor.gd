@@ -426,6 +426,23 @@ func find_debug_world_node() -> Node3D:
 			return node3d
 	return null
 
+func _is_same_graph_resource(a: FlowGraphResource, b: FlowGraphResource) -> bool:
+	if a == b:
+		return true
+	if a == null or b == null:
+		return false
+	var a_path := String(a.resource_path)
+	var b_path := String(b.resource_path)
+	return not a_path.is_empty() and a_path == b_path
+
+func _refresh_active_graph_context() -> void:
+	if current_resource == null:
+		return
+	ctx.graph = current_resource
+	ctx.owner = resource_owner
+	ctx.gedit_nodes_by_name = gedit_nodes_by_name
+	markAllNodesAsDirty()
+	queueForcedRegen()
 
 func setResourceToEdit( new_resource : FlowGraphResource, new_resource_owner : FlowGraphNode3D ):
 	if new_resource == null:
@@ -438,7 +455,7 @@ func setResourceToEdit( new_resource : FlowGraphResource, new_resource_owner : F
 	# Check if this resource is already open in a tab
 	var found_idx = -1
 	for i in range(open_tabs.size()):
-		if open_tabs[i].resource == new_resource:
+		if _is_same_graph_resource(open_tabs[i].resource, new_resource):
 			found_idx = i
 			break
 			
@@ -448,7 +465,7 @@ func setResourceToEdit( new_resource : FlowGraphResource, new_resource_owner : F
 			if new_resource_owner != null:
 				resource_owner = new_resource_owner
 				open_tabs[found_idx].owner = new_resource_owner
-				ctx.owner = new_resource_owner
+				_refresh_active_graph_context()
 			_close_pristine_untitled_tabs(new_resource)
 			return
 		_switch_to_tab(found_idx, new_resource_owner)
@@ -733,7 +750,7 @@ func _set_resource_to_edit_with_loading(new_resource: FlowGraphResource, new_res
 
 	var found_idx := -1
 	for i in range(open_tabs.size()):
-		if open_tabs[i].resource == new_resource:
+		if _is_same_graph_resource(open_tabs[i].resource, new_resource):
 			found_idx = i
 			break
 
@@ -742,7 +759,7 @@ func _set_resource_to_edit_with_loading(new_resource: FlowGraphResource, new_res
 			if new_resource_owner != null:
 				resource_owner = new_resource_owner
 				open_tabs[found_idx].owner = new_resource_owner
-				ctx.owner = new_resource_owner
+				_refresh_active_graph_context()
 			_close_pristine_untitled_tabs(new_resource)
 			return
 		await _switch_to_tab_with_loading(found_idx, new_resource_owner)
