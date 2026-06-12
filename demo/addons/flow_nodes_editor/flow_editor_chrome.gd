@@ -9,7 +9,7 @@ const TOOLBAR_ICON_BY_NAME := {
 	"ButtonSave": "Save",
 	"ButtonBrowse": "ShowInFileSystem",
 	"ButtonReload": "Reload",
-	"ButtonAnalyze": "Search",
+	"ButtonAnalyze": "PackedDataContainer",
 	"ButtonRegenerate": "RandomNumberGenerator",
 	"ButtonMinimap": "GridMinimap",
 	"ButtonInputs": "GraphEdit",
@@ -55,37 +55,11 @@ static func setup(refs: Refs) -> void:
 		apply_styles(refs)
 		apply_translations(refs)
 		return
-	enforce_vbox_order(refs)
 	_attach_toolbar_to_graph_menu(refs)
 	connect_signals(refs)
 	apply_styles(refs)
 	apply_translations(refs)
 	refs.host.set_meta(INITIALIZED_META, true)
-
-
-static func enforce_vbox_order(refs: Refs) -> void:
-	if _is_editing_host_scene(refs):
-		return
-	var vbox := refs.host.get_node_or_null("VBoxContainer")
-	if vbox == null:
-		return
-	var legacy_breadcrumb := vbox.get_node_or_null("BreadcrumbPanel")
-	if legacy_breadcrumb:
-		legacy_breadcrumb.free()
-	var legacy_open := refs.toolbar_hbox.get_node_or_null("ButtonOpenGraph")
-	if legacy_open:
-		legacy_open.free()
-	var order := [
-		"TabBarPanel",
-		"ScrollContainer",
-		"VSplitContainer",
-		"StatusPanel",
-	]
-	for i in order.size():
-		var node := vbox.get_node_or_null(order[i])
-		if node:
-			vbox.move_child(node, i)
-
 
 static func _attach_toolbar_to_graph_menu(refs: Refs) -> void:
 	if _is_editing_host_scene(refs):
@@ -173,31 +147,9 @@ static func apply_styles(refs: Refs) -> void:
 	var vbox := refs.host.get_node_or_null("VBoxContainer")
 	if vbox == null:
 		return
-	var tab_panel := vbox.get_node_or_null("TabBarPanel") as PanelContainer
-	if tab_panel:
-		var tab_sb := StyleBoxFlat.new()
-		tab_sb.bg_color = Color("0e1016")
-		tab_sb.content_margin_left = 4
-		tab_sb.content_margin_right = 4
-		tab_sb.content_margin_top = 2
-		tab_sb.content_margin_bottom = 0
-		tab_panel.add_theme_stylebox_override("panel", tab_sb)
 	var toolbar_container := vbox.get_node_or_null("ScrollContainer") as ScrollContainer
 	if toolbar_container:
 		toolbar_container.visible = editing_host_scene
-	_style_graph_menu_toolbar(refs)
-	for child in refs.toolbar_hbox.get_children():
-		if child is Button:
-			var button := child as Button
-			if TOOLBAR_ICON_BY_NAME.has(button.name):
-				_style_toolbar_icon_button(button, String(TOOLBAR_ICON_BY_NAME[button.name]))
-			else:
-				_style_toolbar_button(button)
-	if refs.open_graph_button:
-		_style_open_graph_button(refs.open_graph_button)
-	if refs.expand_graph_button:
-		_style_expand_graph_button(refs.expand_graph_button)
-
 
 static func apply_translations(refs: Refs) -> void:
 	if not refs.is_valid():
