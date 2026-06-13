@@ -75,7 +75,7 @@ The data model is a **column store**: each pin carries `Data` objects, and a `Da
 | `$Color` | a `Color`-typed stream | Conventionally named `color`; `spawn_meshes` reads it for per-instance vertex colors. |
 | `@Last` | `@last` | "The last stream written by the upstream node" — same idea, same place you'd use it (filter inputs default to it). |
 | `@Source`, `@LastCreated` | — | Not supported; name your output attribute explicitly. |
-| `@Data` / `@Points` / `@Elements` domains (5.6+) | — | No attribute domains; everything is per-point. Roadmap. |
+| `@Data` / `@Points` / `@Elements` domains (5.6+) | `@data.<name>` (per-data); per-point is default | Per-data attributes now exist: write one with `add_attribute` in PerData mode (or the `@data.<name>` selector), read it back broadcast via `@data.<name>`. `partition` stamps its key as a per-data attribute. `@Points` is the default per-point domain; `@Elements` has no equivalent yet. |
 | **Attribute Set** | a `Data` with no point streams | A single-row `Data` is the equivalent of UE's single-entry attribute set. Convert with `point_to_attribute_set` / `attribute_set_to_point`. The `assets` node is the idiomatic way to author a weighted table for `match_and_set`. |
 | **Tags** | `Data.tags` | Per-data string tags, exactly like UE: `add_tags` / `delete_tags` / `replace_tags` to mutate, `filter_data_by_tag` to route. |
 | **Spatial data types** (Surface, Volume, Spline, Primitive, composite algebra) | Point streams + dedicated nodes | There is no typed spatial lattice. Splines travel as a `node` stream of `Path3D`s (from `scan_splines`), meshes as a `node`/`mesh` stream (from `scan_meshes`), and you sample them explicitly (`sample_spline`, `sample_mesh`, `surface_sampler`). "To Point" / "Make Concrete" are unnecessary — everything already is points. See [roadmap](PARITY_ROADMAP.md#spatial-data-type-lattice). |
@@ -99,7 +99,7 @@ Search for any name in the **UE node** column inside the add-node popup — the 
 | Input | `input` | 1:1 | Exposes graph parameters as output ports. |
 | Output | `output` | 1:1 | Graph/subgraph output terminal. |
 | Get Actor Data | `scan_nodes` (alias `points_from_scene`) | 1:1 | One point per matching scene node; filter by group (≈ tag) or class; can import node properties/metadata as attributes. |
-| Get Landscape Data | `scan_meshes` | partial | Godot has no landscape actor. Scan your terrain `MeshInstance3D`(s), then sample (see [forest tutorial](#tutorial-1--forest-quick-start)). No height-field semantics, no paint-layer weights (roadmap). |
+| Get Landscape Data | `scan_meshes` (+ `sample_terrain_layers`) | partial | Godot has no landscape actor. Scan your terrain `MeshInstance3D`(s), then sample (see [forest tutorial](#tutorial-1--forest-quick-start)). No height-field semantics. Paint-layer weights now have a generic equivalent: `sample_terrain_layers` reads N user-assigned mask textures (world-XZ or UV) and writes a `layer_<name>` Float stream per layer, then filter with `density_filter`/`attribute_filter_range`. Terrain-plugin splat auto-detection is still roadmap. |
 | Get Spline Data | `scan_splines` | 1:1 | Collects `Path3D` nodes (by group or scene scan) as a `node` stream. |
 | Get Volume Data | `make_bounds` / `scan_nodes` (size_to_bounds) | partial | No volume actor type; a bounds point + `volume_sampler` covers the sampling use. |
 | Get Primitive Data | `scan_meshes` | 1:1 | Meshes with their `mesh` resources as streams. |
@@ -260,8 +260,8 @@ Search for any name in the **UE node** column inside the add-node popup — the 
 
 | UE node | Here | Status | Notes |
 |---|---|---|---|
-| Grid Size (HiGen) | — | roadmap | See [PARITY_ROADMAP.md](PARITY_ROADMAP.md#hierarchical-generation-grid-size). |
-| Custom HLSL / all GPU nodes | — | roadmap | CPU-only; the native GDExtension (KdTree/RTree) covers the hot paths. |
+| Grid Size (HiGen) | `grid_size` | partial | Declaration node landed — it tags its downstream section with a power-of-two cell size. Per-cell partition *execution* on `FlowGraphNode3D` is still deferred ([roadmap](PARITY_ROADMAP.md#hierarchical-generation-grid-size)). |
+| Custom HLSL / all GPU nodes | `compute_kernel` | partial | Escape-hatch node runs a user-supplied GLSL compute shader over point streams via `RenderingDevice` (declared in/out stream bindings), with graceful CPU fallback. Not a transparent "Execute on GPU" flag; the native GDExtension (KdTree/RTree) still covers the hot paths. |
 
 ### Generic / Tags / Debug
 
@@ -279,6 +279,8 @@ Search for any name in the **UE node** column inside the add-node popup — the 
 | Execute Blueprint | `expression` / write a node script | partial | `expression` = per-point GDScript with streams bound by name. Full custom nodes are a single `.gd` file extending `FlowNodeBase` — substantially less ceremony than a `UPCGBlueprintElement`. |
 
 Nodes here with **no UE counterpart** (you get them for free): `relax` (Lloyd relaxation), `snap_to_grid`, `clip_points_by_polygon` / `clip_paths` / `polygon_operation` (spline-polygon clipping), `random_color`, `sequence_sample`, `points_from_gridmap` / `points_from_tilemap` / `points_from_imported_scene` (Godot-native data sources), `navigation_region_sampler` (navmesh → points), `sample_points` (subdivision with blue-noise / quasi-random), `split_splines` (spline-segment-center points), `create_surface_from_polygon` (polygon → AABB point), `grid_boundary` / `grid_connect_points` (grid-cell topology helpers), `set_variable` / `get_variable` (named wire-free data channels), `attribute_random` (simple uniform random attribute), `remap` (curve remap any float attribute), `tags_mutate` (combined add/remove/replace tags), `size` (point count as data), the `dungeon_*` generator family, and `expression`.
+
+**New roadmap-parity nodes** (see [PARITY_ROADMAP.md](PARITY_ROADMAP.md#implementation-status-2026-06)): `rotator_op` (Combine/Invert/Lerp/RotateAroundAxis on Euler or quaternion rotations), `subdivide_segment` (slice splines/segments into sized, oriented sub-segments), `grammar_expand` (UE-style shape-grammar expansion into placeable modules), `sample_terrain_layers` (mask-texture paint layers), `compute_kernel` (GLSL compute-shader escape hatch), and `grid_size` (HiGen cell-size declaration). Density-aware set ops live on `difference`/`self_pruning` via their `density_function` setting, and per-point `bounds_min`/`bounds_max`/`steepness` streams are honored when present.
 
 ---
 
