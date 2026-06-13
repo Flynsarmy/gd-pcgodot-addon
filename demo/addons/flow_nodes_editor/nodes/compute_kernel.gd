@@ -23,7 +23,7 @@ func _init():
 		"ins" : [{ "label": "In", "multiple_connections" : false }],
 		"outs" : [{ "label" : "Out" }],
 		"aliases" : ["Compute Shader", "GPU Kernel", "Custom HLSL"],
-		"category" : "Advanced",
+		"category" : "Utility",
 		"tooltip" :
 			"Runs a user-supplied GLSL compute shader over the point streams via RenderingDevice.\n" +
 			"Declare input stream -> binding and binding -> output stream mappings in the settings.\n" +

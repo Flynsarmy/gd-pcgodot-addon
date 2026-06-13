@@ -1,7 +1,7 @@
 @tool
 extends FlowNodeBase
 
-const BoundsOverlap = preload("res://addons/flow_nodes_editor/nodes/bounds_overlap_util.gd")
+const BoundsOverlap = preload("res://addons/flow_nodes_editor/bounds_overlap_util.gd")
 
 func _init():
 	meta_node = {

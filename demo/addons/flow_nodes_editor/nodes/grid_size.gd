@@ -33,7 +33,7 @@ func _init():
 			+ "inert — a future FlowGraphNode3D partition mode will use it to drive\n"
 			+ "per-cell evaluation (UE HiGen parity). Data passes through unchanged."
 		),
-		"category" : "Control Flow",
+		"category" : "ControlFlow",
 		"aliases"  : ["Grid Size", "HiGen", "Partition"],
 	}
 

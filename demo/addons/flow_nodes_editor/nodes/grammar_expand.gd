@@ -36,7 +36,7 @@ func _init():
 		"ins" : [{ "label" : "Spans" }],
 		"outs" : [{ "label" : "Modules" }],
 		"aliases" : ["Grammar", "Subdivide Spline"],
-		"category" : "Generator",
+		"category" : "Sampler",
 		"tooltip" : "Expands a grammar string against a module table into per-module points\nfitted onto each input span. Ready for match_and_set / spawn_meshes.",
 	}
 

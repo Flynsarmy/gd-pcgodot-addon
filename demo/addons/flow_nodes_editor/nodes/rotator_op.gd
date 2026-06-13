@@ -11,7 +11,7 @@ func _init():
 		"outs" : [{ "label" : "Out" }],
 		"tooltip" : "Operates on point rotation: Combine, Invert, Lerp, or RotateAroundAxis.\nReads either the Euler 'rotation' stream or the 'rotation_quat' stream, converts through Quaternion internally, and writes back in the representation you select.",
 		"aliases" : ["Rotator Op", "Quaternion Op", "Rotation Op"],
-		"category" : "Point Ops",
+		"category" : "Spatial",
 	}
 
 func getTitle() -> String:
