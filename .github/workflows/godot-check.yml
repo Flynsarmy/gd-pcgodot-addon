@@ -81,14 +81,8 @@ jobs:
           set -o pipefail
           godot --headless --path . --script res://tests/headless_validation.gd 2>&1 | tee validate.log
 
-      # Non-blocking: FlowCommonNodeRegressionTest currently has two pre-existing
-      # failures under Godot 4.6 (unrelated to graph structure) — direct bool
-      # assignment into a PackedByteArray in expression.gd, and `$`-style UE
-      # attribute parsing. These predate the roadmap work; tracked separately.
-      # Kept here for visibility so the regressions are fixed, not forgotten.
+      # Each test is a SceneTree script that quits(1) on any failed assertion.
       - name: Run GDScript regression tests
-        id: regression
-        continue-on-error: true
         working-directory: demo
         run: |
           set -o pipefail
