@@ -20,20 +20,20 @@ const FlowNodeIOClass = preload("res://addons/flow_nodes_editor/flow_nodes_io.gd
 var _graph : FlowGraphResource = FlowGraphResource.new()
 signal graph_node_changed( graph_node : FlowGraphNode3D, prop_name : String )
 
-# custom inputs values for this instantiation
+## Custom inputs values for this instantiation
 @export var args : Dictionary = {}
 
 # --- Async / time-sliced generation (PARITY_ROADMAP async stage 2, opt-in) ---
-# When false (the default), execute() runs a single synchronous evaluate_graph()
-# exactly as before — byte-for-byte the historical behavior. When true, the
-# evaluation is built once and its node-execution phase is spread across frames
-# from _process(), spending at most `frame_budget_ms` per frame. Topo sort,
-# cycle detection, variable/runtime-param publishing and node-instance freeing
-# are identical on both paths (the async path drives the very same evaluator
-# helpers). This is the prerequisite hook for HiGen proximity scheduling.
+## When false, execute() runs a single synchronous evaluate_graph()
+## exactly as before — byte-for-byte the historical behavior. When true, the
+## evaluation is built once and its node-execution phase is spread across frames
+## from _process(), spending at most `frame_budget_ms` per frame. Topo sort,
+## cycle detection, variable/runtime-param publishing and node-instance freeing
+## are identical on both paths (the async path drives the very same evaluator
+## helpers). This is the prerequisite hook for HiGen proximity scheduling.
 @export var async_generation : bool = false
-# Per-frame wall-clock budget for the async path, in milliseconds. Ignored when
-# async_generation is false.
+## Per-frame wall-clock budget for the async path, in milliseconds. Ignored when
+## async_generation is false.
 @export var frame_budget_ms : float = 4.0
 
 # Active resumable evaluation while async generation is in flight (null otherwise).
@@ -72,7 +72,7 @@ func refreshInputs():
 				args[ param_name ] = in_param.get_default_value()
 				print( "  not found. Assigning default value" )
 				changed = true
-				
+
 			else:
 				var curr_val = args[ param_name ]
 				if in_param.data_type != FlowNodeBase.getFlowDataTypeFromObject( curr_val ):
@@ -98,7 +98,7 @@ func refreshInputs():
 		if args:
 			args.clear()
 			changed = true
-		
+
 	if changed:
 		notify_property_list_changed()
 
