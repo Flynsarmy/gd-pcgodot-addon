@@ -1,0 +1,205 @@
+# grid_fill_bounds_test.gd
+class_name GridFillBoundsTest extends GdUnitTestSuite
+
+const FlowDataScript = preload("res://addons/flow_nodes_editor/flow_data.gd")
+const GridFillBoundsNode = preload("res://addons/flow_nodes_editor/nodes/grid_fill_bounds.gd")
+const GridFillBoundsSettings = preload("res://addons/flow_nodes_editor/nodes/grid_fill_bounds_settings.gd")
+
+func _make_bounds_data(positions: PackedVector3Array, sizes: PackedVector3Array) -> FlowData.Data:
+	var d := FlowDataScript.Data.new()
+	d.registerStream(FlowData.AttrPosition, positions, FlowDataScript.DataType.Vector)
+	if sizes.size() > 0:
+		d.registerStream(FlowData.AttrSize, sizes, FlowDataScript.DataType.Vector)
+	d.addCommonStreams(positions.size())
+	return d
+
+func _default_settings() -> GridFillBoundsNodeSettings:
+	var s := GridFillBoundsSettings.new()
+	s.use_input_bounds = false
+	s.bounds_center = Vector3.ZERO
+	s.bounds_size = Vector3(3.0, 1.0, 3.0)
+	s.cell_size = Vector3.ONE
+	s.fill_y_axis = false
+	s.copy_input_attributes = false
+	s.source_index_attribute = ""
+	s.max_points = 100000
+	return s
+
+func _run(inputs: Array, settings) -> GridFillBoundsNode:
+	var node = GridFillBoundsNode.new()
+	node.name = "test_node"
+	node.settings = settings
+	node.inputs = inputs
+	var ctx = FlowDataScript.EvaluationContext.new()
+	var dummy = FlowGraphNode3D.new()
+	ctx.owner = dummy
+	node.preExecute(ctx)
+	node.execute(ctx)
+	dummy.free()
+	return node
+
+func _output(node) -> FlowData.Data:
+	if node.generated_bulks.is_empty(): return null
+	var bulk = node.generated_bulks[0]
+	if bulk.is_empty(): return null
+	return bulk[0]
+
+func test_static_bounds_2d_grid() -> void:
+	var s := _default_settings()
+	s.bounds_center = Vector3.ZERO
+	s.bounds_size = Vector3(3.0, 1.0, 3.0)
+	s.cell_size = Vector3.ONE
+	s.fill_y_axis = false
+	var node := _run([null], s)
+	assert_str(node.err).is_empty()
+	var out := _output(node)
+	assert_object(out).is_not_null()
+	var pos_stream := out.findStream(FlowData.AttrPosition)
+	assert_object(pos_stream).is_not_null()
+	assert_int(pos_stream.container.size()).is_equal(9)
+	node.free()
+
+func test_static_bounds_3d_grid_fill_y() -> void:
+	var s := _default_settings()
+	s.bounds_center = Vector3.ZERO
+	s.bounds_size = Vector3(2.0, 2.0, 2.0)
+	s.cell_size = Vector3.ONE
+	s.fill_y_axis = true
+	var node := _run([null], s)
+	assert_str(node.err).is_empty()
+	var out := _output(node)
+	assert_object(out).is_not_null()
+	var pos_stream := out.findStream(FlowData.AttrPosition)
+	assert_object(pos_stream).is_not_null()
+	assert_int(pos_stream.container.size()).is_equal(8)
+	node.free()
+
+func test_output_has_required_streams() -> void:
+	var s := _default_settings()
+	s.bounds_size = Vector3(2.0, 1.0, 2.0)
+	s.cell_size = Vector3.ONE
+	var node := _run([null], s)
+	assert_str(node.err).is_empty()
+	var out := _output(node)
+	assert_object(out).is_not_null()
+	assert_object(out.findStream(FlowData.AttrPosition)).is_not_null()
+	assert_object(out.findStream(FlowData.AttrSize)).is_not_null()
+	assert_object(out.findStream(FlowData.AttrRotation)).is_not_null()
+	assert_object(out.findStream(FlowData.AttrDensity)).is_not_null()
+	assert_object(out.findStream(FlowData.AttrSeed)).is_not_null()
+	node.free()
+
+func test_cell_size_used_for_out_size_stream() -> void:
+	var s := _default_settings()
+	s.bounds_center = Vector3.ZERO
+	s.bounds_size = Vector3(1.0, 1.0, 1.0)
+	s.cell_size = Vector3(0.5, 0.5, 0.5)
+	s.fill_y_axis = false
+	var node := _run([null], s)
+	assert_str(node.err).is_empty()
+	var out := _output(node)
+	assert_object(out).is_not_null()
+	var size_stream := out.findStream(FlowData.AttrSize)
+	assert_object(size_stream).is_not_null()
+	var sizes: PackedVector3Array = size_stream.container
+	for i in range(sizes.size()):
+		assert_float(sizes[i].x).is_equal_approx(0.5, 0.0001)
+		assert_float(sizes[i].z).is_equal_approx(0.5, 0.0001)
+	node.free()
+
+func test_max_points_limit() -> void:
+	var s := _default_settings()
+	s.bounds_center = Vector3.ZERO
+	s.bounds_size = Vector3(100.0, 1.0, 100.0)
+	s.cell_size = Vector3.ONE
+	s.fill_y_axis = false
+	s.max_points = 5
+	var node := _run([null], s)
+	assert_str(node.err).is_empty()
+	var out := _output(node)
+	assert_object(out).is_not_null()
+	var pos_stream := out.findStream(FlowData.AttrPosition)
+	assert_object(pos_stream).is_not_null()
+	assert_int(pos_stream.container.size()).is_equal(5)
+	node.free()
+
+func test_source_index_attribute_written() -> void:
+	var s := _default_settings()
+	s.bounds_size = Vector3(2.0, 1.0, 2.0)
+	s.cell_size = Vector3.ONE
+	s.source_index_attribute = "src_idx"
+	var node := _run([null], s)
+	assert_str(node.err).is_empty()
+	var out := _output(node)
+	assert_object(out).is_not_null()
+	var idx_stream := out.findStream("src_idx")
+	assert_object(idx_stream).is_not_null()
+	var indices: PackedInt32Array = idx_stream.container
+	for i in range(indices.size()):
+		assert_int(indices[i]).is_equal(0)
+	node.free()
+
+func test_use_input_bounds_single_bound() -> void:
+	var s := _default_settings()
+	s.use_input_bounds = true
+	s.cell_size = Vector3.ONE
+	s.fill_y_axis = false
+	s.copy_input_attributes = false
+	var positions := PackedVector3Array([Vector3(0.0, 0.0, 0.0)])
+	var sizes := PackedVector3Array([Vector3(3.0, 1.0, 3.0)])
+	var in_data := _make_bounds_data(positions, sizes)
+	var node := _run([in_data], s)
+	assert_str(node.err).is_empty()
+	var out := _output(node)
+	assert_object(out).is_not_null()
+	var pos_stream := out.findStream(FlowData.AttrPosition)
+	assert_object(pos_stream).is_not_null()
+	assert_int(pos_stream.container.size()).is_equal(9)
+	node.free()
+
+func test_use_input_bounds_empty_input_returns_empty() -> void:
+	var s := _default_settings()
+	s.use_input_bounds = true
+	s.cell_size = Vector3.ONE
+	var empty_data := FlowDataScript.Data.new()
+	var node := _run([empty_data], s)
+	assert_str(node.err).is_empty()
+	var out := _output(node)
+	assert_object(out).is_not_null()
+	assert_int(out.size()).is_equal(0)
+	node.free()
+
+func test_use_input_bounds_missing_position_sets_error() -> void:
+	var s := _default_settings()
+	s.use_input_bounds = true
+	s.cell_size = Vector3.ONE
+	var bad_data := FlowDataScript.Data.new()
+	var dummy_sizes := PackedVector3Array([Vector3(2.0, 1.0, 2.0)])
+	bad_data.registerStream(FlowData.AttrSize, dummy_sizes, FlowDataScript.DataType.Vector)
+	bad_data.addCommonStreams(1)
+	var node := _run([bad_data], s)
+	assert_str(node.err).is_not_empty()
+	node.free()
+
+func test_copy_input_attributes_propagated() -> void:
+	var s := _default_settings()
+	s.use_input_bounds = true
+	s.cell_size = Vector3.ONE
+	s.fill_y_axis = false
+	s.copy_input_attributes = true
+	s.source_index_attribute = "src_idx"
+	var positions := PackedVector3Array([Vector3(0.0, 0.0, 0.0)])
+	var sizes := PackedVector3Array([Vector3(2.0, 1.0, 2.0)])
+	var in_data := _make_bounds_data(positions, sizes)
+	var custom_vals := PackedFloat32Array([42.0])
+	in_data.registerStream("custom", custom_vals, FlowDataScript.DataType.Float)
+	var node := _run([in_data], s)
+	assert_str(node.err).is_empty()
+	var out := _output(node)
+	assert_object(out).is_not_null()
+	var custom_stream := out.findStream("custom")
+	assert_object(custom_stream).is_not_null()
+	var custom_out: PackedFloat32Array = custom_stream.container
+	for i in range(custom_out.size()):
+		assert_float(custom_out[i]).is_equal_approx(42.0, 0.0001)
+	node.free()
