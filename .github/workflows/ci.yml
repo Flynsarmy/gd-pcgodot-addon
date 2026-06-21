@@ -120,9 +120,13 @@ jobs:
   # Boots headless Godot 4.6 to load every addon script + demo scene. Catches the
   # class of breakage the C++ build cannot see (GDScript parse/type/null errors).
   validate:
-    name: Headless Godot validation
+    name: Headless Godot validation (${{ matrix.godot }})
     needs: build
     runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        godot: ['4.6.0', '4.7.0']
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -150,7 +154,7 @@ jobs:
       - name: Setup Godot (headless)
         uses: chickensoft-games/setup-godot@v2
         with:
-          version: 4.6.0          # matches config/features in demo/project.godot
+          version: ${{ matrix.godot }}   # project targets 4.6; 4.7 verified for forward-compat
           use-dotnet: false
           include-templates: false
 
@@ -191,9 +195,13 @@ jobs:
           exit $rc
 
   gdunit_validate:
-    name: GdUnit4 Tests
+    name: GdUnit4 Tests (${{ matrix.godot }})
     needs: build
     runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        godot: ['4.6', '4.7']
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -221,7 +229,7 @@ jobs:
       - name: Run GdUnit4 tests
         uses: godot-gdunit-labs/gdUnit4-action@v1
         with:
-          godot-version: '4.6'
+          godot-version: ${{ matrix.godot }}
           paths: 'res://tests'
           project_dir: './demo'
 

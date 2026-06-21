@@ -56,9 +56,14 @@ demo/addons/kaykit_dungeon_remastered/**
 demo/addons/flow_nodes_editor/doc/*.png.import
 demo/addons/flow_nodes_editor/bin/~*.dll
 
-# Native build intermediates
+# GdUnit4 test reports (generated on every run)
+demo/reports/
+
+# Native build intermediates (link-time artifacts — only the .dll is loaded at runtime)
 demo/addons/flow_nodes_editor/native/src/*.o
 demo/addons/flow_nodes_editor/bin/liblibflow.*.a
+demo/addons/flow_nodes_editor/bin/*.exp
+demo/addons/flow_nodes_editor/bin/*.lib
 
 # CI builds the Linux GDExtension fresh (only Windows/macOS binaries are shipped);
 # never commit the locally/CI-built Linux library or the godot-cpp build outputs.
