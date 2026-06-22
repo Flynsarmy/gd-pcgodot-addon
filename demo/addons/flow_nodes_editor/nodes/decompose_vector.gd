@@ -37,19 +37,21 @@ func execute( ctx : FlowData.EvaluationContext ):
 		return
 		
 	var in_vecs : PackedVector3Array = s_in.container
-	
+
 	var out_x := PackedFloat32Array()
 	var out_y := PackedFloat32Array()
 	var out_z := PackedFloat32Array()
-	
+
 	out_x.resize(size)
 	out_y.resize(size)
 	out_z.resize(size)
-	
+
 	for i in range(size):
-		out_x[i] = in_vecs[i].x
-		out_y[i] = in_vecs[i].y
-		out_z[i] = in_vecs[i].z
+		# Honor broadcast (length-1) vector streams like the sibling nodes do.
+		var v : Vector3 = in_vecs[FlowData.bcast_idx(in_vecs.size(), i)]
+		out_x[i] = v.x
+		out_y[i] = v.y
+		out_z[i] = v.z
 		
 	if settings.x_attribute != "":
 		out_data.registerStream(settings.x_attribute, out_x, FlowData.DataType.Float)

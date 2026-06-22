@@ -26,11 +26,20 @@ func _numeric_as_float(value) -> float:
 	return float(value)
 
 
+func _is_numeric(value) -> bool:
+	return value is int or value is float or value is bool
+
+
 func _passes_numeric_condition(value_a, value_b, condition : int, threshold : float) -> bool:
 	match condition:
 		FilterNodeSettings.eCondition.Equal:
+			# Coerce across numeric types so 1 (int) == 1.0 (float) and true == 1.0.
+			if _is_numeric(value_a) and _is_numeric(value_b):
+				return _numeric_as_float(value_a) == _numeric_as_float(value_b)
 			return value_a == value_b
 		FilterNodeSettings.eCondition.NotEqual:
+			if _is_numeric(value_a) and _is_numeric(value_b):
+				return _numeric_as_float(value_a) != _numeric_as_float(value_b)
 			return value_a != value_b
 		FilterNodeSettings.eCondition.Greater:
 			return _numeric_as_float(value_a) > _numeric_as_float(value_b)
