@@ -26,6 +26,11 @@ enum ePlane {
 @export var include_spline_ref : bool = true
 ## Output attribute name that stores spline produced by this node.
 @export var out_spline_attribute : String = "node"
+## UE-parity bridge. By default the surface point keeps UNIT scale and its AABB
+## extent lives in the bounds streams only. Enable to ALSO write that extent into
+## the `size` stream as before, so spawners scale meshes by it — restores the
+## pre-bounds look.
+@export var legacy_scale_from_extent : bool = false
 
 func _init():
 	super._init()

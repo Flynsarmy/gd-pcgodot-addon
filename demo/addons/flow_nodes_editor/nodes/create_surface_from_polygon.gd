@@ -119,11 +119,13 @@ func execute(_ctx : FlowData.EvaluationContext):
 	var op := out.getVector3Container(FlowData.AttrPosition)
 	var orot := out.getVector3Container(FlowData.AttrRotation)
 	var osize := out.getVector3Container(FlowData.AttrSize)
+	# UE parity: unit scale; the polygon AABB extent is recorded as bounds. The
+	# opt-in legacy bridge keeps size = extent (old size-as-scale) when requested.
+	var legacy : bool = settings.legacy_scale_from_extent
 	for i in range(out_positions.size()):
 		op[i] = out_positions[i]
 		orot[i] = out_rotations[i]
-		# UE parity: unit scale; the polygon AABB extent is recorded as bounds.
-		osize[i] = Vector3.ONE
+		osize[i] = out_sizes[i] if legacy else Vector3.ONE
 	out.setSymmetricBounds(out_sizes)
 	if settings.out_area_attribute.strip_edges() != "":
 		out.registerStream(settings.out_area_attribute, areas, FlowData.DataType.Float)

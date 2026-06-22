@@ -59,6 +59,12 @@ enum eFillMode {
 ## The number of points to generate when random sampling is active.[br]
 ## Used when [member sampling_mode] is Random (points along path) or when [member fill_curve] is enabled and [member fill_mode] is Random (points inside area).
 @export var num_random_samples : int = 10
+## UE-parity bridge. By default samples keep UNIT scale and their spatial extent
+## (the sampling interval / segment length) lives in the bounds streams only.
+## Enable to ALSO write that extent into the `size` stream as before, so
+## downstream spawners scale meshes by it — restores the pre-bounds look in
+## existing graphs that relied on size-as-scale.
+@export var legacy_scale_from_extent : bool = false
 
 func _init():
 	super._init()
