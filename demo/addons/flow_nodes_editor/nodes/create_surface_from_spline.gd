@@ -104,7 +104,9 @@ func execute(_ctx : FlowData.EvaluationContext):
 	for i in range(positions.size()):
 		op[i] = positions[i]
 		orot[i] = rotations[i]
-		osize[i] = sizes[i]
+		# UE parity: unit scale; the surface AABB extent is recorded as bounds.
+		osize[i] = Vector3.ONE
+	out.setSymmetricBounds(sizes)
 	if settings.out_area_attribute.strip_edges() != "":
 		out.registerStream(settings.out_area_attribute, areas, FlowData.DataType.Float)
 	if settings.out_perimeter_attribute.strip_edges() != "":

@@ -197,7 +197,10 @@ func execute(ctx : FlowData.EvaluationContext):
 	for i in range(num_points):
 		op[i] = positions[i]
 		orot[i] = rotations[i]
-		osize[i] = sizes[i]
+		# UE parity: unit scale; the sub-segment extent (cross-section + length)
+		# goes to bounds (the `length` attribute below still carries the span).
+		osize[i] = Vector3.ONE
+	out.setSymmetricBounds(sizes)
 
 	if settings.out_length_attribute.strip_edges() != "":
 		out.registerStream(settings.out_length_attribute, lengths, FlowData.DataType.Float)

@@ -67,7 +67,40 @@ func test_uniform_path_sampling() -> void:
 	# Verify density and seed streams exist
 	assert_object(out.findStream(FlowDataScript.AttrDensity)).is_not_null()
 	assert_object(out.findStream(FlowDataScript.AttrSeed)).is_not_null()
-	
+
+	node.free()
+	path_3d.free()
+
+func test_uniform_samples_have_unit_scale_and_interval_bounds() -> void:
+	# UE parity (the original Flyn report): samples must keep UNIT scale so spawned
+	# meshes are placed at their natural size, not stretched to the sample spacing.
+	# The spacing/extent lives in bounds instead.
+	var path_3d = Path3D.new()
+	path_3d.curve = Curve3D.new()
+	path_3d.curve.add_point(Vector3(0, 0, 0))
+	path_3d.curve.add_point(Vector3(10, 0, 0))
+
+	var node = _run_sample_spline(path_3d, false, func(s):
+		s.sampling_mode = SampleSplineSettings.eSamplingMode.Uniform
+		s.uniform_interval = 2.0
+		s.adjust_to_borders = true
+	)
+	assert_str(node.err).is_empty()
+	var out = _get_output_data(node)
+	assert_object(out).is_not_null()
+
+	var sizes = out.getVector3Container(FlowDataScript.AttrSize)
+	assert_bool(sizes.size() > 0).is_true()
+	for sz in sizes:
+		assert_bool(sz.is_equal_approx(Vector3.ONE)).is_true()
+
+	# Bounds carry the spacing extent (~uniform_interval) instead.
+	var bmin = out.getVector3Container(FlowDataScript.AttrBoundsMin)
+	var bmax = out.getVector3Container(FlowDataScript.AttrBoundsMax)
+	assert_int(bmin.size()).is_equal(sizes.size())
+	var ext = bmax[0] - bmin[0]
+	assert_float(ext.x).is_equal_approx(2.0, 0.001)
+
 	node.free()
 	path_3d.free()
 

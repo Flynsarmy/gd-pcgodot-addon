@@ -70,9 +70,8 @@ func uniformSampling( ctx : FlowData.EvaluationContext, in_trs : FlowData.Transf
 		ssize.resize( new_size )
 
 		var origin : Vector3 = in_trs.positions[ i ]
-		var rotation : Vector3 = in_trs.eulers[ i ] 
+		var rotation : Vector3 = in_trs.eulers[ i ]
 		var step : Vector3 = Vector3.ONE * sampling_distance
-		var size : Vector3 = step * new_size_factor
 		var transform = Transform3D( FlowData.eulerToBasis(rotation), origin )
 		# Center the grid symmetrically around the origin (even counts included)
 		var hx := (nx - 1) * 0.5
@@ -84,8 +83,19 @@ func uniformSampling( ctx : FlowData.EvaluationContext, in_trs : FlowData.Transf
 					var p := Vector3( ix - hx, iy - hy, iz - hz ) * step
 					spos[idx] = transform * p
 					srot[idx] = rotation
-					ssize[idx] = size
+					# UE parity: unit scale; the cell extent goes to bounds below.
+					ssize[idx] = Vector3.ONE
 					idx += 1
+
+	# Record each cell's extent (spacing * factor) as bounds, not scale, so
+	# spawned meshes are placed at natural size instead of stretched to the cell.
+	var cell_extent : Vector3 = Vector3.ONE * sampling_distance * new_size_factor
+	var npts := spos.size()
+	if npts > 0:
+		var extents := PackedVector3Array()
+		extents.resize( npts )
+		extents.fill( cell_extent )
+		output.setSymmetricBounds( extents )
 	
 
 func uniformDistributedSample1D( n : int, base : float) -> float:
@@ -254,7 +264,9 @@ func blueNoiseSampling( ctx : FlowData.EvaluationContext, in_trs : FlowData.Tran
 				continue
 			spos[idx] = transform * p
 			srot[idx] = ( rotation )
-			ssize[idx] = ( point_size ) * size
+			# UE parity: point scale is the configured point_size, independent of
+			# the sampling region — don't multiply by the region size.
+			ssize[idx] = point_size
 			idx += 1
 			
 		spos.resize( idx )
@@ -286,6 +298,17 @@ func execute( ctx : FlowData.EvaluationContext ):
 	if in_trs == null:
 		setError( "Input does not provide position, rotation or scale streams" )
 		return
+
+	# The region each input point is subdivided over = its bounds extent (UE
+	# parity). getEffectiveBounds falls back to size when no bounds stream exists,
+	# so legacy graphs that encoded the region in `size` still work unchanged,
+	# while inputs that now carry unit scale + bounds subdivide the real region.
+	var _eb := in_data.getEffectiveBounds()
+	var _region := PackedVector3Array()
+	_region.resize( in_trs.sizes.size() )
+	for _i in _region.size():
+		_region[_i] = _eb.max[_i] - _eb.min[_i]
+	in_trs.sizes = _region
 
 	if settings.distribution == SamplePointsNodeSettings.eDistribution.BlueNoise2D:
 		blueNoiseSampling( ctx, in_trs, out_data )

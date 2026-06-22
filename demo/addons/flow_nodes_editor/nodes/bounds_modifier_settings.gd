@@ -29,8 +29,9 @@ enum eOutput {
 
 ## The modification mode to apply to point bounds.
 @export var mode: eMode = eMode.Set
-## Determines whether the result is written back to the legacy 'size' stream or to the per-point bounds streams.
-@export var output_mode: eOutput = eOutput.SymmetricSize:
+## Determines whether the result is written to the per-point bounds streams
+## (UE BoundsMin/BoundsMax parity, default) or back to the legacy 'size' stream.
+@export var output_mode: eOutput = eOutput.PerPointBounds:
 	set(value):
 		output_mode = value
 		notify_property_list_changed()

@@ -122,7 +122,9 @@ func execute(_ctx : FlowData.EvaluationContext):
 	for i in range(out_positions.size()):
 		op[i] = out_positions[i]
 		orot[i] = out_rotations[i]
-		osize[i] = out_sizes[i]
+		# UE parity: unit scale; the polygon AABB extent is recorded as bounds.
+		osize[i] = Vector3.ONE
+	out.setSymmetricBounds(out_sizes)
 	if settings.out_area_attribute.strip_edges() != "":
 		out.registerStream(settings.out_area_attribute, areas, FlowData.DataType.Float)
 	if settings.out_perimeter_attribute.strip_edges() != "":

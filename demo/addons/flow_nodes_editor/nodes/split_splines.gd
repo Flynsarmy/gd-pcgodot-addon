@@ -70,7 +70,10 @@ func execute(_ctx : FlowData.EvaluationContext):
 	for i in range(positions.size()):
 		op[i] = positions[i]
 		orot[i] = rotations[i]
-		osize[i] = sizes[i]
+		# UE parity: unit scale; the segment extent (cross-section x/y, segment
+		# length in z) is recorded as bounds so spawned meshes aren't stretched.
+		osize[i] = Vector3.ONE
+	out.setSymmetricBounds(sizes)
 	if settings.out_start_attribute.strip_edges() != "":
 		out.registerStream(settings.out_start_attribute, starts, FlowData.DataType.Vector)
 	if settings.out_end_attribute.strip_edges() != "":

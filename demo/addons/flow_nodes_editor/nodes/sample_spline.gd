@@ -362,6 +362,14 @@ func execute( ctx : FlowData.EvaluationContext ):
 		var sample_size := Vector3.ONE * uniform_interval
 		ssize.fill(sample_size)
 
+	# UE PCG parity: the per-sample extent we just computed (spacing / segment
+	# length / cross-section) belongs in the point BOUNDS, not in scale. Record it
+	# as bounds, then reset scale to unit so spawned meshes are placed at their
+	# natural size instead of being stretched to the sampling interval.
+	output.setSymmetricBounds( ssize )
+	for i in range( ssize.size() ):
+		ssize[i] = Vector3.ONE
+
 	# Density + per-point seed streams (UE parity)
 	var num_points := spos.size()
 	var node_seed : int = settings.random_seed

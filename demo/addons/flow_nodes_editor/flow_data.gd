@@ -720,6 +720,24 @@ class Data:
 			container = PackedVector3Array()
 		return container
 
+	## Register per-point bounds (UE BoundsMin/BoundsMax parity) from full extents,
+	## as a box centered on each point: bounds_min = -extent/2, bounds_max = +extent/2.
+	## Generators use this to record a sample's spatial extent (spacing, segment
+	## length, surface size) WITHOUT inflating AttrSize — which would otherwise be
+	## applied as a Transform scale and stretch spawned meshes. Leave AttrSize unit.
+	func setSymmetricBounds( extents : PackedVector3Array ):
+		var n := extents.size()
+		var bmin := PackedVector3Array()
+		var bmax := PackedVector3Array()
+		bmin.resize( n )
+		bmax.resize( n )
+		for i in range( n ):
+			var h : Vector3 = extents[i] * 0.5
+			bmin[i] = -h
+			bmax[i] = h
+		registerStream( AttrBoundsMin, bmin, DataType.Vector )
+		registerStream( AttrBoundsMax, bmax, DataType.Vector )
+
 	## Per-point bounds resolution (UE PCG BoundsMin/BoundsMax parity).
 	##
 	## Returns a Dictionary with two PackedVector3Array entries, "min" and "max",

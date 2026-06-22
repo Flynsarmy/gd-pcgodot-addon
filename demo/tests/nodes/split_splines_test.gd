@@ -194,7 +194,7 @@ func test_empty_spline_list_produces_no_output_segments() -> void:
 	assert_int(positions.size()).is_equal(0)
 	node.free()
 
-func test_segment_size_xy_applied_to_size_stream() -> void:
+func test_segment_size_xy_applied_to_bounds() -> void:
 	var path = _make_line_path(Vector3.ZERO, Vector3(10, 0, 0))
 	var s = SplitSplinesSettings.new()
 	s.spline_stream_attribute = "node"
@@ -205,12 +205,22 @@ func test_segment_size_xy_applied_to_size_stream() -> void:
 	assert_str(node.err).is_empty()
 	var out = _output(node)
 	assert_object(out).is_not_null()
+	# UE parity: scale stays unit; the cross-section (x/y) and segment length (z)
+	# extent is recorded in bounds so spawned meshes aren't stretched.
 	var sizes = out.getVector3Container(FlowDataScript.AttrSize)
 	assert_bool(sizes.size() > 0).is_true()
 	for sz in sizes:
-		assert_float(sz.x).is_equal_approx(3.0, 0.001)
-		assert_float(sz.y).is_equal_approx(7.0, 0.001)
-		assert_bool(sz.z > 0.0).is_true()
+		assert_float(sz.x).is_equal_approx(1.0, 0.001)
+		assert_float(sz.y).is_equal_approx(1.0, 0.001)
+		assert_float(sz.z).is_equal_approx(1.0, 0.001)
+	var bmin = out.getVector3Container(FlowDataScript.AttrBoundsMin)
+	var bmax = out.getVector3Container(FlowDataScript.AttrBoundsMax)
+	assert_int(bmin.size()).is_equal(sizes.size())
+	for i in range(bmin.size()):
+		var ext = bmax[i] - bmin[i]
+		assert_float(ext.x).is_equal_approx(3.0, 0.001)
+		assert_float(ext.y).is_equal_approx(7.0, 0.001)
+		assert_bool(ext.z > 0.0).is_true()
 	node.free()
 	path.free()
 

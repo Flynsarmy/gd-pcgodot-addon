@@ -293,12 +293,22 @@ func test_cross_section_size_written_to_output() -> void:
 	var out = _output(node)
 	assert_object(out).is_not_null()
 
+	# UE parity: scale stays unit; the cross-section (x/y) and sub-segment length
+	# (z) extent is recorded in bounds so spawned meshes aren't stretched.
 	var size_stream = out.findStream(FlowData.AttrSize)
 	assert_object(size_stream).is_not_null()
 	assert_int(size_stream.container.size()).is_equal(1)
-	assert_float(size_stream.container[0].x).is_equal_approx(3.0, 0.001)
-	assert_float(size_stream.container[0].y).is_equal_approx(5.0, 0.001)
-	assert_float(size_stream.container[0].z).is_equal_approx(6.0, 0.001)
+	assert_float(size_stream.container[0].x).is_equal_approx(1.0, 0.001)
+	assert_float(size_stream.container[0].y).is_equal_approx(1.0, 0.001)
+	assert_float(size_stream.container[0].z).is_equal_approx(1.0, 0.001)
+
+	var bmin = out.getVector3Container(FlowData.AttrBoundsMin)
+	var bmax = out.getVector3Container(FlowData.AttrBoundsMax)
+	assert_int(bmin.size()).is_equal(1)
+	var ext = bmax[0] - bmin[0]
+	assert_float(ext.x).is_equal_approx(3.0, 0.001)
+	assert_float(ext.y).is_equal_approx(5.0, 0.001)
+	assert_float(ext.z).is_equal_approx(6.0, 0.001)
 
 	node.free()
 
