@@ -92,6 +92,8 @@ func _load_image(texture : Texture2D, layer_name : String):
 		setError("Layer '%s': failed to read texture image data (texture may not be imported yet)" % layer_name)
 		return null
 	if image.is_compressed():
+		# Duplicate first so decompress() never mutates the shared texture asset.
+		image = image.duplicate()
 		if image.decompress() != OK:
 			setError("Layer '%s': texture is compressed and could not be decompressed" % layer_name)
 			return null

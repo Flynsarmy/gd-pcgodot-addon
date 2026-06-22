@@ -44,6 +44,20 @@ func test_missing_input_returns_error() -> void:
 	assert_str(node.err).is_not_empty()
 	node.free()
 
+func test_does_not_mutate_source_curve_bake_interval() -> void:
+	# Sampling must be non-destructive: the scene Curve3D's bake_interval is
+	# restored after sampling, not left at our working interval.
+	var path = _make_line_path(Vector3.ZERO, Vector3(10, 0, 0))
+	path.curve.bake_interval = 3.0
+	var s = SplitSplinesSettings.new()
+	s.spline_stream_attribute = "node"
+	s.uniform_interval = 1.0
+	var node = _run([_make_spline_data([path])], s)
+	assert_str(node.err).is_empty()
+	assert_float(path.curve.bake_interval).is_equal_approx(3.0, 0.0001)
+	node.free()
+	path.free()
+
 func test_wrong_stream_name_returns_error() -> void:
 	var path = _make_line_path(Vector3.ZERO, Vector3(10, 0, 0))
 	var d := FlowDataScript.Data.new()

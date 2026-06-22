@@ -12,5 +12,12 @@ func _init():
 	}
 
 func execute(ctx : FlowData.EvaluationContext):
-	settings.operation = DifferenceNodeSettings.eOperation.Union
+	# Force the Union operation WITHOUT mutating the saved settings resource
+	# (which would dirty/rewrite the shared .tres and make the inspector's
+	# operation dropdown a lie). Mirror intersection.gd's duplicate-and-restore.
+	var saved_settings = settings
+	var forced_settings = settings.duplicate()
+	forced_settings.operation = DifferenceNodeSettings.eOperation.Union
+	settings = forced_settings
 	super.execute(ctx)
+	settings = saved_settings

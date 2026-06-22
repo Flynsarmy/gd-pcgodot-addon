@@ -120,7 +120,9 @@ func execute(_ctx : FlowData.EvaluationContext):
 		setError("Failed to read texture image data")
 		return
 	if image.is_compressed():
-		# Imported textures often arrive VRAM-compressed; get_pixel needs raw data
+		# Imported textures often arrive VRAM-compressed; get_pixel needs raw data.
+		# Duplicate first so decompress() never mutates the shared texture asset.
+		image = image.duplicate()
 		if image.decompress() != OK:
 			setError("Texture image is compressed and could not be decompressed")
 			return

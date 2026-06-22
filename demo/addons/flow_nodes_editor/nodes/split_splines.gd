@@ -36,8 +36,12 @@ func execute(_ctx : FlowData.EvaluationContext):
 		var path := stream.container[spline_idx] as Path3D
 		if path == null or path.curve == null:
 			continue
+		# Bake at our interval and restore — the Curve3D is a scene resource, not
+		# ours to mutate persistently (sampling must be non-destructive).
+		var prev_bake_interval := path.curve.bake_interval
 		path.curve.bake_interval = interval
 		var baked := path.curve.get_baked_points()
+		path.curve.bake_interval = prev_bake_interval
 		if baked.size() < 2:
 			continue
 		for seg_idx in range(baked.size() - 1):
