@@ -49,6 +49,11 @@ func uniformSampling( ctx : FlowData.EvaluationContext, in_trs : FlowData.Transf
 	var srot := output.getVector3Container( FlowData.AttrRotation )
 	var ssize := output.getVector3Container( FlowData.AttrSize )
 
+	# Grid cell extent (spacing * factor) — recorded as bounds; also written to
+	# scale when the opt-in legacy bridge is on (restores old size-as-scale).
+	var legacy : bool = settings.legacy_scale_from_extent
+	var cell_extent : Vector3 = Vector3.ONE * sampling_distance * new_size_factor
+
 	var num_points : int = in_trs.size()
 	for i in num_points:
 		var in_size := in_trs.sizes[ i ]
@@ -84,12 +89,11 @@ func uniformSampling( ctx : FlowData.EvaluationContext, in_trs : FlowData.Transf
 					spos[idx] = transform * p
 					srot[idx] = rotation
 					# UE parity: unit scale; the cell extent goes to bounds below.
-					ssize[idx] = Vector3.ONE
+					ssize[idx] = cell_extent if legacy else Vector3.ONE
 					idx += 1
 
-	# Record each cell's extent (spacing * factor) as bounds, not scale, so
-	# spawned meshes are placed at natural size instead of stretched to the cell.
-	var cell_extent : Vector3 = Vector3.ONE * sampling_distance * new_size_factor
+	# Record each cell's extent as bounds, not scale, so spawned meshes are
+	# placed at natural size instead of stretched to the cell.
 	var npts := spos.size()
 	if npts > 0:
 		var extents := PackedVector3Array()
@@ -265,8 +269,8 @@ func blueNoiseSampling( ctx : FlowData.EvaluationContext, in_trs : FlowData.Tran
 			spos[idx] = transform * p
 			srot[idx] = ( rotation )
 			# UE parity: point scale is the configured point_size, independent of
-			# the sampling region — don't multiply by the region size.
-			ssize[idx] = point_size
+			# the sampling region. Legacy bridge restores the old region multiply.
+			ssize[idx] = (point_size * size) if settings.legacy_scale_from_extent else point_size
 			idx += 1
 			
 		spos.resize( idx )

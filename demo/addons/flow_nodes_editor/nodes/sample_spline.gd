@@ -367,8 +367,10 @@ func execute( ctx : FlowData.EvaluationContext ):
 	# as bounds, then reset scale to unit so spawned meshes are placed at their
 	# natural size instead of being stretched to the sampling interval.
 	output.setSymmetricBounds( ssize )
-	for i in range( ssize.size() ):
-		ssize[i] = Vector3.ONE
+	# Opt-in legacy bridge: keep size = extent (old size-as-scale) when requested.
+	if not getSettingValue( ctx, "legacy_scale_from_extent" ):
+		for i in range( ssize.size() ):
+			ssize[i] = Vector3.ONE
 
 	# Density + per-point seed streams (UE parity)
 	var num_points := spos.size()

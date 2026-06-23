@@ -21,6 +21,11 @@ extends NodeSettings
 @export var include_spline_ref : bool = true
 ## Output attribute stream name storing spline references.
 @export var out_spline_attribute : String = "node"
+## UE-parity bridge. By default segments keep UNIT scale and their extent
+## (cross-section x/y, segment length z) lives in the bounds streams only.
+## Enable to ALSO write that extent into the `size` stream as before, so
+## spawners scale meshes by it — restores the pre-bounds look.
+@export var legacy_scale_from_extent : bool = false
 
 func _init():
 	super._init()

@@ -194,12 +194,14 @@ func execute(ctx : FlowData.EvaluationContext):
 	var op := out.getVector3Container(FlowData.AttrPosition)
 	var orot := out.getVector3Container(FlowData.AttrRotation)
 	var osize := out.getVector3Container(FlowData.AttrSize)
+	# UE parity: unit scale; the sub-segment extent (cross-section + length) goes
+	# to bounds (the `length` attribute below still carries the span). The opt-in
+	# legacy bridge keeps size = extent (old size-as-scale) when requested.
+	var legacy : bool = settings.legacy_scale_from_extent
 	for i in range(num_points):
 		op[i] = positions[i]
 		orot[i] = rotations[i]
-		# UE parity: unit scale; the sub-segment extent (cross-section + length)
-		# goes to bounds (the `length` attribute below still carries the span).
-		osize[i] = Vector3.ONE
+		osize[i] = sizes[i] if legacy else Vector3.ONE
 	out.setSymmetricBounds(sizes)
 
 	if settings.out_length_attribute.strip_edges() != "":

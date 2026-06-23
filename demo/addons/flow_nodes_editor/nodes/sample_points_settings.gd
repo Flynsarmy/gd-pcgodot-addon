@@ -55,6 +55,11 @@ enum eDistribution {
 ## The target number of points to generate when using the 'BlueNoise2D' distribution.
 ## Note: Some points might be skipped if they lie outside the bounds of the input point size.
 @export var num_samples : int = 64
+## UE-parity bridge. By default points keep UNIT scale and their spatial extent
+## (the grid cell size) lives in the bounds streams only. Enable to ALSO write
+## that extent into the `size` stream as before, so downstream spawners scale
+## meshes by it — restores the pre-bounds look in size-as-scale graphs.
+@export var legacy_scale_from_extent : bool = false
 
 func _init():
 	super._init()
